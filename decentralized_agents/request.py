@@ -6,6 +6,7 @@ import json
 
 @dataclass
 class Address:
+    """A node's address in the network."""
     node_id: str
     port: int
     ip: str = "127.0.0.1"
@@ -16,18 +17,21 @@ class Address:
 
 @dataclass
 class SyncRequest:
+    """Request to synchronize nodes in the network."""
     # sync_type: Literal["join", "update"]
     peers: List[Address] = field(default_factory=list)
 
 
 @dataclass
 class ProbeRequest:
+    """Request to probe the network for available nodes."""
     type: Literal["probe", "response"] = "probe"
     response: Optional[bool] = False
 
 
 @dataclass
 class ModelRequest:
+    """Request for model inference."""
     source_node_addr: Address
 
     CNT: ClassVar[int] = 0
@@ -37,13 +41,16 @@ class ModelRequest:
     model_result: Optional[Dict] = None
     type: Literal["request", "response"] = "request"
 
+
     def __post_init__(self):
         self.request_id = ModelRequest.CNT
         ModelRequest.CNT += 1
 
+
     def set_response(self, response: Dict):
         self.model_result = response
         self.type = "response"
+
 
     @classmethod
     def from_json(cls, data: Dict) -> "ModelRequest":
@@ -60,6 +67,7 @@ class ModelRequest:
 
 @dataclass
 class CommunicateRequest:
+    """Base class for all zmq-communication requests."""
     sender: Address
     type: Literal["sync", "model", "probe"]
     payload: Union[SyncRequest, ModelRequest, ProbeRequest]
@@ -72,6 +80,7 @@ class CommunicateRequest:
     def __post_init__(self):
         self.request_id = CommunicateRequest.CNT
         CommunicateRequest.CNT += 1
+
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
