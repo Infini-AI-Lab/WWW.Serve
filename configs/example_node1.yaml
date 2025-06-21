@@ -1,0 +1,12 @@
+# export HF_ENDPOINT=https://hf-mirror.com
+# python3 -m sglang.launch_server --model-path deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --host 0.0.0.0 --port 30000 --max-running-requests 5 
+
+models:
+  - model_path: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+    max_concurrent: 2
+    base_url: http://192.168.103.15:30000/v1
+    api_key: None
+    sampling_params:
+      max_tokens: 32768
+      temperature: 0.6
+      top_p: 0.95

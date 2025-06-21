@@ -1,0 +1,73 @@
+import _setup_path
+from decentralized_agents.node import LLMNode
+import asyncio
+import time
+import json
+
+
+async def timed_submit(prompt, node: LLMNode):
+    t0 = time.time()
+    result = await node.submit_request(prompt)
+    t1 = time.time()
+    return result, t1 - t0
+
+
+async def simulate_node_crash(node: LLMNode, delay):
+    await asyncio.sleep(delay)
+    await node.stop()
+
+
+async def main():
+    node1 = LLMNode(
+        node_id="node1",
+        port=5678,
+        config_path="configs/example_node1.yaml",
+    )
+    # node2 = LLMNode(
+    #     node_id="node2",
+    #     port=5679,
+    #     config_path="configs/example_node2.yaml",
+    # )
+    # node3 = LLMNode(
+    #     node_id="node3",
+    #     port=5680,
+    #     config_path="configs/example_node3.yaml",
+    # )
+    await node1.start()
+    # await node2.start()
+    # await node3.start()
+
+    # await node2.join_network(node1.address.to_url())
+    # await node3.join_network(node2.address.to_url())
+
+
+    with open("test_datasets/test_prompts.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # asyncio.create_task(simulate_node_crash(node2, delay=5.0))
+
+    start = time.time()
+    tasks = [asyncio.create_task(timed_submit(item["prompt"], node1)) for item in data]
+    results = await asyncio.gather(*tasks)
+    elapsed = time.time() - start
+    print(f"All prompts processed in {elapsed:.2f} seconds")
+
+
+    with open("test_datasets/test_results.json", "w", encoding="utf-8") as f:
+        json.dump(
+            [
+                {
+                    "data": data[idx],
+                    "time_taken": time_taken,
+                    "result": result,
+                }
+                for idx, (result, time_taken) in enumerate(results)
+            ],
+            f,
+            ensure_ascii=False,
+            indent=4,
+        )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
