@@ -1,34 +1,42 @@
 import time
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Tuple
 import random
 import yaml
 from pathlib import Path
 import zmq.asyncio
 import json
-
 import asyncio
 from openai import AsyncOpenAI
 from dataclasses import dataclass, field
+from collections import deque
+
 
 from .request import ModelRequest, Address, SyncRequest, ProbeRequest, CommunicateRequest
 from .async_queue import AsyncQueue
 from .utils import get_sglang_metrics
 
 
+
+COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
+GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
+REQUEST_TIMEOUT = 15                # Timeout for request (s)
+
+INPUT_WINDOW_SIZE = 5               # Time window for input requests (s)
+MAX_REQUESTS_PER_WINDOW = 5         # Max requests in the input window
+
+
+IS_TESTING = False                   # Set to True for testing: No real server
+TESTING_DELAY = 10                  # Simulated inferencing delay for testing (s)
+
+
 @dataclass
 class PeerInfo:
     """Information of a peer node."""
+    node_id: str
     address: Address
     last_update: float = field(default_factory=time.time)
     fail_count: int = 0
 
-
-COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
-GOSSIP_INTERVAL = 3                 # Gossip interval (s)
-REQUEST_TIMEOUT = 15                # Timeout for request (s)
-
-IS_TESTING = False                   # Set to True for testing: No real server
-TESTING_DELAY = 10                  # Simulated inferencing delay for testing (s)
 
 
 class LLMNode:
@@ -75,6 +83,8 @@ class LLMNode:
 
         self.model_client: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.client_params: Dict[str, Dict] = {}
+        self.model_req_time: Dict[str, deque[Tuple[int, float]]] = {}  # model_path -> [(request_id, timestamp)]
+        self.model_metrics: Dict[str, Dict] = {}  # model_path -> metrics
 
         for model_cfg in config['models']:
             model_path = model_cfg['model_path']
@@ -83,6 +93,7 @@ class LLMNode:
             params = model_cfg.get('params', {})
 
             self.client_params[model_path] = params | {"base_url": base_url} # TODO: Merge params with base_url, not elegant
+            self.model_req_time[model_path] = deque()
 
             if IS_TESTING:
                 self.model_client[model_path] = None
@@ -95,9 +106,9 @@ class LLMNode:
 
     async def start(self):
         """Start the node and its main loops."""
+        self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
         self._tasks.append(asyncio.create_task(self._dispatch_loop()))
         self._tasks.append(asyncio.create_task(self._listen_loop()))
-        self._tasks.append(asyncio.create_task(self._gossip_loop()))
 
 
     async def stop(self):
@@ -110,6 +121,28 @@ class LLMNode:
         print(f"[{self.node_id}  ] Node stopped.")
 
 
+    def _record_request_time(self, model_path: str, request_id: str):
+        """Record the time for a request sending to a specific model."""
+        current_time = time.time()
+        dq = self.model_req_time.get(model_path)
+        dq.append((request_id, current_time))
+
+        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
+            dq.popleft()
+
+
+    def _get_windowed_request_count(self, model_path: str) -> int:
+        """Get the number of requests sending to a specific model."""
+        current_time = time.time()
+        dq = self.model_req_time.get(model_path)
+        if not dq:
+            return 0
+
+        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
+            dq.popleft()
+        return len(dq)
+
+
     async def _sync_peer(self, peers: List[Address]):
         """Synchronize the peer list with the provided peers."""
         async with self.zmq_lock:
@@ -119,7 +152,7 @@ class LLMNode:
 
                 existing = self.peers.get(addr.node_id, None)
                 if existing is None:
-                    self.peers[addr.node_id] = PeerInfo(address=addr)
+                    self.peers[addr.node_id] = PeerInfo(node_id=addr.node_id, address=addr)
                     print(f"[{self.node_id}  ] Added new peer: {addr.node_id} at {addr.to_url()}")
                 else:
                     # Update address if changed, keep fail count etc.
@@ -148,7 +181,7 @@ class LLMNode:
             print(f"[{self.node_id}  ] Failed to join network at {peer_address}")
 
 
-    async def _select_target_node_for_route(self) -> Union[str, None]:
+    async def _select_node_for_route(self) -> Union[str, None]:
         """Select a target node for routing the request."""
         comm_request = CommunicateRequest(
             sender=self.address,
@@ -204,7 +237,7 @@ class LLMNode:
                 return json.loads(response.decode('utf-8'))
             return None
         except Exception as e:
-            print(f"[{self.node_id}  ] Error sending request to {target_id or target_addr}: {e}")
+            print(f"[{self.node_id}  ] Failed to send request to {target_id or target_addr}: {e}")
             return None
         finally:
             socket.close()
@@ -287,31 +320,51 @@ class LLMNode:
     async def _get_model_payload_info(self, model_path: str):
         """Get the payload of the specific model.
 
-        For now, only return sglang:token_usage, sglang:num_queue_reqs
+        For now, only return sglang:token_usage, sglang:num_queue_reqs, sglang:num_running_reqs
         """
         server_url = self.client_params[model_path].get("base_url", None)
-        return await get_sglang_metrics(server_url, metric_list=["sglang:token_usage", "sglang:num_queue_reqs"])
+        return await get_sglang_metrics(server_url, metric_list=["sglang:token_usage", "sglang:num_running_reqs"])
 
 
-    async def _select_model_for_dispatch(self) -> Union[str, None]:
-        """Select a model for dispatching the request based on the current load."""
-        if IS_TESTING:
-            return random.choice(list(self.model_client.keys()))
-
+    async def _record_server_metrics(self):
+        """Record server metrics periodically."""
         for model_path in self.model_client.keys():
             metrics = await self._get_model_payload_info(model_path)
             if metrics is None:
                 print(f"[{self.node_id}  ] Failed to fetch metrics for model {model_path}")
+                self.model_metrics[model_path] = {
+                    "timestamp": time.time()
+                }
                 continue
 
-            token_usage = next((m['value'] for m in metrics if m['name'] == 'sglang:token_usage'), None)
-            num_queue_reqs = next((m['value'] for m in metrics if m['name'] == 'sglang:num_queue_reqs'), None)
-            print(f"[{self.node_id}  ] Model {model_path} metrics: token_usage={token_usage}, num_queue_reqs={num_queue_reqs}")
+            parsed = {entry["name"]: entry["value"] for entry in metrics}
+            parsed["timestamp"] = time.time()
+            print(f"[{self.node_id}  ] Recorded metrics for model {model_path}: {parsed}")
+            self.model_metrics[model_path] = parsed
 
-            if token_usage is not None and num_queue_reqs is not None:
-                max_token_usage = self.client_params[model_path].get("max_token_usage", 0.8)
-                max_num_queue_reqs = self.client_params[model_path].get("max_num_queue_reqs", 10)
-                if token_usage < max_token_usage and num_queue_reqs < max_num_queue_reqs:
+
+    def _select_model_for_dispatch(self) -> Union[str, None]:
+        """Select a model for dispatching the request based on the current load."""
+        available_models = [m for m in self.model_client.keys() if self._get_windowed_request_count(m) < MAX_REQUESTS_PER_WINDOW]
+
+        if IS_TESTING:
+            return random.choice(available_models) if available_models else None
+
+        # TODO: Choose the most suitable model (lightest load, etc.)
+        for model_path in available_models:
+            metrics = self.model_metrics.get(model_path, None)
+            if metrics is None:
+                print(f"[{self.node_id}  ] Failed to fetch metrics for model {model_path}")
+                continue
+
+            token_usage = metrics.get("sglang:token_usage", None)
+            num_running_reqs = metrics.get("sglang:num_running_reqs", None)
+
+            if token_usage is not None and num_running_reqs is not None:
+                max_token_usage = self.client_params[model_path].get("max_token_usage", 0.6)
+                max_num_running_reqs = self.client_params[model_path].get("max_num_running_reqs", 50)
+                if token_usage < max_token_usage and num_running_reqs < max_num_running_reqs:
+                    print(f"[{self.node_id}  ] Selected model {model_path} for dispatch (token_usage={token_usage}, num_running_reqs={num_running_reqs})")
                     return model_path
 
         return None
@@ -319,17 +372,15 @@ class LLMNode:
 
     async def _gossip_probe(self):
         """Gossip with peers to check their availability and synchronize."""
-        peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers))) + [(self.node_id, PeerInfo(address=self.address))]
+        peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers)))
         print(f"[{self.node_id}  ] Gossiping with: {[node_id for node_id, _ in peer_samples]}")
         for node_id, peer_info in peer_samples:
-            if node_id == self.node_id:
-                continue
             try:
                 comm_request = CommunicateRequest(
                         sender=self.address,
                         type="sync",
                         payload=SyncRequest(
-                            peers=[peer.address for peer in self.peers.values()]
+                            peers=[peer.address for peer in self.peers.values()] + [self.address]
                         )
                     )
                 response = await self._send_request(comm_request, target_addr=peer_info.address.to_url())
@@ -345,7 +396,7 @@ class LLMNode:
                         print(f"[{self.node_id}  ] Node {node_id} is offline, removing from peers")
                         self.peers.pop(node_id, None)
             except Exception as e:
-                print(f"[{self.node_id}  ] Error communicating with node {node_id}: {e}")
+                print(f"[{self.node_id}  ] Failed to communicate with node {node_id}: {e}")
                 self.peers[node_id].fail_count += 1
                 if self.peers[node_id].fail_count >= 3:
                     print(f"[{self.node_id}  ] Node {node_id} is offline, removing from peers")
@@ -366,11 +417,12 @@ class LLMNode:
             })
 
 
-    async def _gossip_loop(self):
-        """Periodically gossip with peers to check their availability."""
+    async def _gossip_metric_loop(self):
+        """Periodically gossip with peers to check their availability, and save server metrics."""
         while True:
             await self._gossip_probe()
-            await asyncio.sleep(GOSSIP_INTERVAL)
+            await self._record_server_metrics()
+            await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
 
 
     async def _dispatch_loop(self):
@@ -389,13 +441,14 @@ class LLMNode:
             request: ModelRequest = list(done)[0].result()
             source = "user" if done == {get_user} else "node"
 
-            selected_model = await self._select_model_for_dispatch()
+            selected_model = self._select_model_for_dispatch()
 
             if selected_model:
                 print(f"[{self.node_id}  ] Dispatching request {request.request_id} from {source}, using {self.node_id}: {selected_model}")
+                self._record_request_time(selected_model, request.request_id)
                 asyncio.create_task(self._inference_request(selected_model, request))
             else:
-                target_node_id = await self._select_target_node_for_route()
+                target_node_id = await self._select_node_for_route()
                 if target_node_id:
                     print(f"[{self.node_id}  ] Sending {source} request {request.request_id} from {self.node_id} to {target_node_id}")
                     comm_request = CommunicateRequest(

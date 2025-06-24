@@ -39,15 +39,14 @@ async def get_sglang_metrics(
 async def main():
     url = "http://192.168.102.15:30000"
 
-    all_metrics = await get_sglang_metrics(url)
-    print("All Metrics:")
-    print(all_metrics)
+    # all_metrics = await get_sglang_metrics(url)
+    # print("All Metrics:")
+    # print(all_metrics)
 
     filtered = await get_sglang_metrics(
         url, 
-        metric_list=["sglang:token_usage", "sglang:num_queue_reqs"]
+        metric_list=["sglang:token_usage", "sglang:num_queue_reqs", "sglang:num_running_reqs"]
     )
-    print("\nFiltered Metrics:")
     print(filtered)
 
 

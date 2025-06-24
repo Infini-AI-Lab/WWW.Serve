@@ -10,4 +10,4 @@ models:
       temperature: 0.6
       top_p: 0.95
       max_token_usage: 0.8
-      max_num_queue_reqs: 10
+      max_num_queue_reqs: 5
