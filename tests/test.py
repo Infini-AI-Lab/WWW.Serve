@@ -41,7 +41,7 @@ async def main():
     # await node3.join_network(node2.address.to_url())
 
 
-    with open("test_datasets/math500/math500.json", "r", encoding="utf-8") as f:
+    with open("test_datasets/test_prompts.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # asyncio.create_task(simulate_node_crash(node2, delay=5.0))

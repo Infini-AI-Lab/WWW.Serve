@@ -13,19 +13,20 @@ from collections import deque
 
 from .request import ModelRequest, Address, SyncRequest, ProbeRequest, CommunicateRequest
 from .async_queue import AsyncQueue
-from .utils import get_sglang_metrics
+from .utils import get_sglang_metrics, format_sglang_response
 
 
 
 COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-REQUEST_TIMEOUT = 15                # Timeout for request (s)
+REQUEST_TIMEOUT = 120               # Timeout for request (s)
 
-INPUT_WINDOW_SIZE = 5               # Time window for input requests (s)
+DEFAULT_WINDOW_SIZE = 3             # Input window size (s)
+DEFAULT_TPS = 200                   # Default throughput (tokens per second)
 MAX_REQUESTS_PER_WINDOW = 5         # Max requests in the input window
 
 
-IS_TESTING = False                   # Set to True for testing: No real server
+IS_TESTING = False                  # Set to True for testing: No real server
 TESTING_DELAY = 10                  # Simulated inferencing delay for testing (s)
 
 
@@ -83,7 +84,9 @@ class LLMNode:
 
         self.model_client: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.client_params: Dict[str, Dict] = {}
-        self.model_req_time: Dict[str, deque[Tuple[int, float]]] = {}  # model_path -> [(request_id, timestamp)]
+
+        self.model_req_input_window: Dict[str, deque[Tuple[int, float]]] = {}  # model_path -> [(request_id, timestamp)]
+        self.model_req_finish_window: Dict[str, deque[Tuple[int, float, int]]] = {}  # model_path -> [(request_id, timestamp, token_num)]
         self.model_metrics: Dict[str, Dict] = {}  # model_path -> metrics
 
         for model_cfg in config['models']:
@@ -93,7 +96,9 @@ class LLMNode:
             params = model_cfg.get('params', {})
 
             self.client_params[model_path] = params | {"base_url": base_url} # TODO: Merge params with base_url, not elegant
-            self.model_req_time[model_path] = deque()
+            self.model_req_input_window[model_path] = deque()
+            self.model_req_finish_window[model_path] = deque()
+            self.model_metrics[model_path] = {}
 
             if IS_TESTING:
                 self.model_client[model_path] = None
@@ -121,26 +126,63 @@ class LLMNode:
         print(f"[{self.node_id}  ] Node stopped.")
 
 
-    def _record_request_time(self, model_path: str, request_id: str):
-        """Record the time for a request sending to a specific model."""
+    def _record_request_input(self, model_path: str, request_id: str):
+        """Record the time for a request sending to a specific model within the window."""
         current_time = time.time()
-        dq = self.model_req_time.get(model_path)
+        dq = self.model_req_input_window.get(model_path)
         dq.append((request_id, current_time))
 
-        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
+        while dq and (current_time - dq[0][1]) > DEFAULT_WINDOW_SIZE:
             dq.popleft()
 
 
     def _get_windowed_request_count(self, model_path: str) -> int:
-        """Get the number of requests sending to a specific model."""
+        """Get the number of requests sending to a specific model within the window."""
         current_time = time.time()
-        dq = self.model_req_time.get(model_path)
+        dq = self.model_req_input_window.get(model_path)
         if not dq:
             return 0
 
-        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
+        while dq and (current_time - dq[0][1]) > DEFAULT_WINDOW_SIZE:
             dq.popleft()
         return len(dq)
+    
+
+    def _model_available(self, model_path: str) -> bool:
+        """Check if the model is available for new requests."""
+        req_cnt = self._get_windowed_request_count(model_path)
+        if req_cnt >= MAX_REQUESTS_PER_WINDOW:
+            return False
+
+        num_queue_reqs = self.model_metrics.get(model_path, {}).get("sglang:num_queue_reqs", None)
+
+        if num_queue_reqs is not None:
+            max_num_queue_reqs = self.client_params[model_path].get("max_num_queue_reqs", 100)
+            if num_queue_reqs < max_num_queue_reqs:
+                return True
+
+        return False
+
+    def is_overloaded(self) -> bool:
+        """Check if the node is overloaded."""
+        for model_path in self.model_client.keys():
+            if self._model_available(model_path):
+                return False
+        return True
+
+
+    def _record_request_finish(self, model_path: str, request_id: str, token_num: int):
+        """Record the finish time and token count for a request within the window, 
+        and update the request_input_speed."""
+        current_time = time.time()
+        dq = self.model_req_finish_window.get(model_path)
+        dq.append((request_id, current_time, token_num))
+
+        while dq and (current_time - dq[0][1]) > DEFAULT_WINDOW_SIZE:
+            dq.popleft()
+        assert len(dq) > 0, "Finish window should not be empty"
+
+        self.model_metrics.get(model_path, {})["avg_token_num"] = sum(t[2] for t in dq) / len(dq)
 
 
     async def _sync_peer(self, peers: List[Address]):
@@ -259,33 +301,13 @@ class LLMNode:
             )
             response = {
                 "done_by": self.node_id,
-                "content": meta_response.choices[0].message.content,
-                "meta_data": {
-                    "finish_reason": meta_response.choices[0].finish_reason,
-                    "model": meta_response.model,
-                    "object": meta_response.object,
-                    "usage": {
-                        "prompt_tokens": meta_response.usage.prompt_tokens,
-                        "completion_tokens": meta_response.usage.completion_tokens,
-                        "total_tokens": meta_response.usage.total_tokens
-                    }
-                }
+                **format_sglang_response(meta_response)
             }
         else:
             await asyncio.sleep(TESTING_DELAY)  # Simulate processing time
             response = {
                 "done_by": self.node_id,
                 "content": f"Simulated response for request {request.request_id} on model {model_path}",
-                "meta_data": {
-                    "finish_reason": "test",
-                    "model": model_path,
-                    "object": "chat.completion",
-                    "usage": {
-                        "prompt_tokens": -1,
-                        "completion_tokens": -1,
-                        "total_tokens": -1
-                    }
-                }
             }
 
         if request.source_node_addr == self.address:
@@ -317,56 +339,33 @@ class LLMNode:
         return await future
 
 
-    async def _get_model_payload_info(self, model_path: str):
-        """Get the payload of the specific model.
-
-        For now, only return sglang:token_usage, sglang:num_queue_reqs, sglang:num_running_reqs
-        """
-        server_url = self.client_params[model_path].get("base_url", None)
-        return await get_sglang_metrics(server_url, metric_list=["sglang:token_usage", "sglang:num_running_reqs"])
-
-
     async def _record_server_metrics(self):
-        """Record server metrics periodically."""
+        """Record server metrics (periodically)."""
         for model_path in self.model_client.keys():
-            metrics = await self._get_model_payload_info(model_path)
+            server_url = self.client_params[model_path].get("base_url", None)
+            metrics = await get_sglang_metrics(server_url, metric_list=
+                                               ["sglang:num_queue_reqs",
+                                                "sglang:token_usage",
+                                                "sglang:num_used_tokens"])
             if metrics is None:
                 print(f"[{self.node_id}  ] Failed to fetch metrics for model {model_path}")
-                self.model_metrics[model_path] = {
-                    "timestamp": time.time()
-                }
                 continue
 
             parsed = {entry["name"]: entry["value"] for entry in metrics}
-            parsed["timestamp"] = time.time()
-            print(f"[{self.node_id}  ] Recorded metrics for model {model_path}: {parsed}")
-            self.model_metrics[model_path] = parsed
+            old_metrics = self.model_metrics.get(model_path, {})
+            self.model_metrics[model_path] = {
+                **old_metrics,
+                **parsed
+            }
+            print(f"[{self.node_id}  ] Updated metrics for {model_path}: {self.model_metrics[model_path]}")
+            # TODO: update the max token num of the model, adjust the input speed to control token_usage.
 
 
     def _select_model_for_dispatch(self) -> Union[str, None]:
         """Select a model for dispatching the request based on the current load."""
-        available_models = [m for m in self.model_client.keys() if self._get_windowed_request_count(m) < MAX_REQUESTS_PER_WINDOW]
-
-        if IS_TESTING:
-            return random.choice(available_models) if available_models else None
-
-        # TODO: Choose the most suitable model (lightest load, etc.)
-        for model_path in available_models:
-            metrics = self.model_metrics.get(model_path, None)
-            if metrics is None:
-                print(f"[{self.node_id}  ] Failed to fetch metrics for model {model_path}")
-                continue
-
-            token_usage = metrics.get("sglang:token_usage", None)
-            num_running_reqs = metrics.get("sglang:num_running_reqs", None)
-
-            if token_usage is not None and num_running_reqs is not None:
-                max_token_usage = self.client_params[model_path].get("max_token_usage", 0.6)
-                max_num_running_reqs = self.client_params[model_path].get("max_num_running_reqs", 50)
-                if token_usage < max_token_usage and num_running_reqs < max_num_running_reqs:
-                    print(f"[{self.node_id}  ] Selected model {model_path} for dispatch (token_usage={token_usage}, num_running_reqs={num_running_reqs})")
-                    return model_path
-
+        for model_path in self.model_client.keys():
+            if self._model_available(model_path):
+                return model_path
         return None
 
 
@@ -445,7 +444,7 @@ class LLMNode:
 
             if selected_model:
                 print(f"[{self.node_id}  ] Dispatching request {request.request_id} from {source}, using {self.node_id}: {selected_model}")
-                self._record_request_time(selected_model, request.request_id)
+                self._record_request_input(selected_model, request.request_id)
                 asyncio.create_task(self._inference_request(selected_model, request))
             else:
                 target_node_id = await self._select_node_for_route()

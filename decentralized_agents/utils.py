@@ -36,6 +36,22 @@ async def get_sglang_metrics(
         return None
 
 
+def format_sglang_response(meta_response) -> Dict:
+    return  {
+                "content": meta_response.choices[0].message.content,
+                "meta_data": {
+                    "finish_reason": meta_response.choices[0].finish_reason,
+                    "model": meta_response.model,
+                    "object": meta_response.object,
+                    "usage": {
+                        "prompt_tokens": meta_response.usage.prompt_tokens,
+                        "completion_tokens": meta_response.usage.completion_tokens,
+                        "total_tokens": meta_response.usage.total_tokens
+                    }
+                }
+            }
+
+
 async def main():
     url = "http://192.168.102.15:30000"
 
