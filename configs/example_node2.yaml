@@ -6,8 +6,7 @@ models:
     base_url: http://192.168.102.14:30001
     api_key: None
     params:
-      max_tokens: 32768
+      max_tokens: 16384
       temperature: 0.6
       top_p: 0.95
-      max_token_usage: 0.8
-      max_num_queue_reqs: 200
+      max_num_queue_reqs: 10

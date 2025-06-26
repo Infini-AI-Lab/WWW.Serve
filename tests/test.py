@@ -44,6 +44,7 @@ async def main():
     with open("test_datasets/test_prompts.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
+    # data = data[:100]  # Limit to 100 items for testing
     # asyncio.create_task(simulate_node_crash(node2, delay=5.0))
 
     start = time.time()
