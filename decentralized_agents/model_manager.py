@@ -5,15 +5,16 @@ import yaml
 
 
 from .utils import format_sglang_response, get_sglang_metrics
-from .request import ModelRequest, Address, SyncRequest, ProbeRequest, CommunicateRequest
+from .request import ModelRequest
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .node import LLMNode
 
 
-DEFAULT_REQUESTS_PER_WINDOW = 3         # Default requests in the input window
-MAX_REQUESTS_PER_WINDOW = 20          # Max requests in the input window
+DEFAULT_REQUESTS_PER_WINDOW = 5         # Default requests in the input window
+MAX_REQUESTS_PER_WINDOW = 20            # Max requests in the input window
+
 
 class ModelManager:
     def __init__(self, node: "LLMNode", config_path):
@@ -23,10 +24,10 @@ class ModelManager:
             config = yaml.safe_load(f)
 
         self.clients: Dict[str, Union[AsyncOpenAI, None]] = {}
-        self.generation_params: Dict[str, Dict] = {}
+        self.params: Dict[str, Dict] = {}
 
-        self.req_input_windows: Dict[str, deque[Tuple[int, float]]] = {}  # model_path -> [(request_id, timestamp)]
-        self.req_finish_windows: Dict[str, deque[Tuple[int, float, int]]] = {}  # model_path -> [(request_id, timestamp, token_num)]
+        self.req_input_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp)]
+        self.req_finish_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp, token_num)]
         self.metrics: Dict[str, Dict] = {}
         self.stats: Dict[str, Dict] = {}
         self.base_urls: Dict[str, str] = {}
@@ -36,21 +37,21 @@ class ModelManager:
             api_key = model_cfg.get('api_key', None)
             base_url = model_cfg.get('base_url', None)
 
-            self.generation_params[model_path] = model_cfg.get('params', {})
+            self.clients[model_path] = AsyncOpenAI(
+                base_url=f"{base_url}/v1",
+                api_key=api_key
+            )
+            self.params[model_path] = model_cfg.get('params', {})
             self.req_input_windows[model_path] = deque()
             self.req_finish_windows[model_path] = deque()
             self.metrics[model_path] = {}
             self.stats[model_path] = {}
             self.base_urls[model_path] = base_url
-            self.clients[model_path] = AsyncOpenAI(
-                base_url=f"{base_url}/v1",
-                api_key=api_key
-            )
-    
+
 
     async def inference_request(self, model_path: str, request: ModelRequest):
         """Inferencing user input with the specified model."""
-        gen_params = self.generation_params[model_path]
+        gen_params = self.params[model_path]
         meta_response = await self.clients[model_path].chat.completions.create(
             model = model_path,
             messages = [{
@@ -67,6 +68,7 @@ class ModelManager:
         }
         
         self.node.request_manager.record_request_finish(model_path, request.request_id, meta_response.usage.total_tokens)
+        print(f"[{self.node.node_id}  ] Request {request.request_id} finished.")
 
         if request.source_node_addr == self.node.communicator.address:
             future = self.node.pending_futures.pop(request.request_id, None)
@@ -74,13 +76,8 @@ class ModelManager:
                 future.set_result(response)
         else:
             request.set_response(response)
-            comm_request = CommunicateRequest(
-                sender=self.node.communicator.address,
-                type="model",
-                payload=request
-            )
             print(f"[{self.node.node_id}  ] Sending back request {request.request_id} to {request.source_node_addr.node_id}")
-            _ = await self.node.communicator.send_request(comm_request, target_addr=request.source_node_addr.to_url())
+            _ = await self.node.communicator.send_request(payload=request, type="model", target_addr=request.source_node_addr.to_url())
 
 
     async def _record_server_metrics(self):
@@ -108,9 +105,13 @@ class ModelManager:
             if avg_req_token_num is None or max_token_capacity is None:
                 max_req_per_window = DEFAULT_REQUESTS_PER_WINDOW
             else:
-                max_req_per_window = min((max_token_capacity * (1 - token_usage)) // avg_req_token_num, MAX_REQUESTS_PER_WINDOW)
+                usage = (0.8 - token_usage) if token_usage < 0.8 else 0
+                max_req_per_window = min((max_token_capacity * usage) // avg_req_token_num, MAX_REQUESTS_PER_WINDOW)
+                # TODO: min_req_per_window?
+                max_req_per_window = max(DEFAULT_REQUESTS_PER_WINDOW, max_req_per_window)
 
-            # TODO: if max_req_per_window = 0!!!!!
             self.stats[model_path]["max_req_per_window"] = max_req_per_window
 
-            print(f"[{self.node.node_id}  ] Updated metrics for {model_path}: {self.metrics[model_path]}, {self.stats[model_path]}")
+            print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
+            print(f"          {self.metrics[model_path]}")
+            print(f"          {self.stats[model_path]}")

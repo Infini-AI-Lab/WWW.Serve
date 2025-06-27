@@ -4,6 +4,7 @@ from typing import List, Dict, Literal, ClassVar, Optional, Union
 from dataclasses import dataclass, field, asdict
 import json
 
+
 @dataclass
 class Address:
     """A node's address in the network."""

@@ -3,7 +3,7 @@
 
 models:
   - model_path: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-    base_url: http://192.168.102.14:30001
+    base_url: http://192.168.102.12:30001
     api_key: None
     params:
       max_tokens: 16384

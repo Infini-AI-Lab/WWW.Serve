@@ -9,10 +9,10 @@ import random
 from .request import Address, CommunicateRequest, SyncRequest, ProbeRequest, ModelRequest
 
 
-
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .node import LLMNode
+
 
 COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
 
@@ -62,23 +62,20 @@ class ZmqCommunicator:
                     self.peers[addr.node_id] = PeerInfo(node_id=addr.node_id, address=addr)
                     print(f"[{self.node.node_id}  ] Added new peer: {addr.node_id} at {addr.to_url()}")
                 else:
-                    # Update address if changed, keep fail count etc.
+                    # Update address if changed.
                     if existing.address != addr:
                         existing.address = addr
                         existing.last_update = time.time()
                         print(f"[{self.node.node_id}  ] Updated peer {addr.node_id} address to {addr.to_url()}")
 
 
-    async def join_network(self, peer_address: str):
+    async def _join_network(self, peer_address: str):
         """Join the network by synchronizing with a peer."""
-        comm_request = CommunicateRequest(
-            sender=self.address,
+        response = await self.send_request(
+            payload=SyncRequest(peers=[self.address]),
             type="sync",
-            payload= SyncRequest(
-                peers=[self.address]
-            )
+            target_addr=peer_address
         )
-        response = await self.send_request(comm_request, target_addr=peer_address)
 
         if response:
             raw_peers = response["payload"]["peers"]
@@ -89,12 +86,19 @@ class ZmqCommunicator:
 
 
     async def send_request(self,
-                           request: CommunicateRequest,
+                           payload,
+                           type: str,
                            target_id: str = None,
                            target_addr: str = None) -> Union[Dict, None]:
         """Send a request to a target node or address."""
         if target_id is None and target_addr is None:
             raise ValueError("Either target_id or target_addr must be provided")
+        
+        comm_request = CommunicateRequest(
+            sender=self.address,
+            type=type,
+            payload=payload
+        )
 
         if target_addr is None:
             async with self.zmq_lock:
@@ -105,7 +109,7 @@ class ZmqCommunicator:
 
         try:
             socket.connect(target_addr)
-            await socket.send(request.to_json().encode('utf-8'))
+            await socket.send(comm_request.to_json().encode('utf-8'))
 
             poller = zmq.asyncio.Poller()
             poller.register(socket, zmq.POLLIN)
@@ -122,26 +126,23 @@ class ZmqCommunicator:
             socket.close()
     
 
+    async def _check_node(self, node_id):
+        try:
+            response = await self.send_request(
+                payload=ProbeRequest(type="probe"),
+                type="probe",
+                target_id=node_id
+            )
+            if response and response["payload"]["response"]:
+                return node_id
+        except Exception as e:
+            print(f"[{self.node.node_id}] Failed to probe node {node_id}: {e}")
+        return None
+
+
     async def select_node_for_route(self) -> Union[str, None]:
         """Select a target node for routing the request."""
-        comm_request = CommunicateRequest(
-            sender=self.address,
-            type="probe",
-            payload=ProbeRequest(
-                type="probe"
-            )
-        )
-
-        async def _check_node(node_id):
-            try:
-                response = await self.send_request(comm_request, target_id=node_id)
-                if response and response["payload"]["response"]:
-                    return node_id
-            except Exception as e:
-                print(f"[{self.node.node_id}] Failed to probe node {node_id}: {e}")
-            return None
-
-        tasks = [_check_node(node_id) for node_id in self.peers.keys()]
+        tasks = [self._check_node(node_id) for node_id in self.peers.keys()]
         results = await asyncio.gather(*tasks)
 
         for result in results:
@@ -156,14 +157,13 @@ class ZmqCommunicator:
         print(f"[{self.node.node_id}  ] Gossiping with: {[node_id for node_id, _ in peer_samples]}")
         for node_id, peer_info in peer_samples:
             try:
-                comm_request = CommunicateRequest(
-                        sender=self.address,
-                        type="sync",
-                        payload=SyncRequest(
-                            peers=[peer.address for peer in self.peers.values()] + [self.address]
-                        )
-                    )
-                response = await self.send_request(comm_request, target_addr=peer_info.address.to_url())
+                response = await self.send_request(
+                    payload=SyncRequest(
+                        peers=[peer.address for peer in self.peers.values()] + [self.address]
+                    ),
+                    type="sync",
+                    target_addr=peer_info.address.to_url()
+                )
                 if response:
                     raw_peers = response["payload"]["peers"]
                     peers = [Address(**p) for p in raw_peers]

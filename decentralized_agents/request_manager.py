@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 
 DEFAULT_INPUT_WINDOW_SIZE = 10             # Input window size (s)
-DEFAULT_FINISH_WINDOW_SIZE = 120           # Finish window size (s)
+DEFAULT_FINISH_WINDOW_SIZE = 180           # Finish window size (s)
+
 
 class RequestManager:
     def __init__(self, node: "LLMNode"):
@@ -58,7 +59,7 @@ class RequestManager:
         self.node.models.stats[model_path]["avg_req_token_num"] = sum(t[2] for t in dq) / len(dq)
 
 
-    async def fetch_request(self) -> Tuple[ModelRequest, str]:
+    async def fetch_one_request(self) -> Tuple[ModelRequest, str]:
         get_user = asyncio.create_task(self.user_request_queue.get())
         get_node = asyncio.create_task(self.node_request_queue.get())
         done, pending = await asyncio.wait(

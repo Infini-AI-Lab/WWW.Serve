@@ -37,14 +37,14 @@ async def main():
     # await node2.start()
     # await node3.start()
 
-    # await node2.join_network(node1.address.to_url())
+    # await node2.join_network(node1.communicator.address.to_url())
     # await node3.join_network(node2.address.to_url())
 
 
-    with open("test_datasets/test_prompts.json", "r", encoding="utf-8") as f:
+    with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # data = data[:100]  # Limit to 100 items for testing
+    # data = data[:20]
     # asyncio.create_task(simulate_node_crash(node2, delay=5.0))
 
     start = time.time()
@@ -54,7 +54,7 @@ async def main():
     print(f"All prompts processed in {elapsed:.2f} seconds")
 
 
-    with open("test_datasets/test_results.json", "w", encoding="utf-8") as f:
+    with open("datasets/math500/math500_7B_2.json", "w", encoding="utf-8") as f:
         json.dump(
             [
                 {

@@ -3,18 +3,17 @@ from pathlib import Path
 import asyncio
 
 
-from .request import ModelRequest, CommunicateRequest
+from .request import ModelRequest
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
 from .request_manager import RequestManager
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-REQUEST_TIMEOUT = 6000               # Timeout for request (s)
+DEFAULT_REQUEST_TIMEOUT = 1200              # Timeout for request (s)
 
 
 class LLMNode:
-    """A decentralized node for handling model requests and communication."""
     def __init__(self,
                  node_id: str,
                  ip: str = "127.0.0.1",
@@ -22,7 +21,6 @@ class LLMNode:
                  config_path: Union[Path, str] = None
                  ):
         self.node_id = node_id
-
         self.pending_futures: Dict[str, asyncio.Future] = {}
 
         self.communicator = ZmqCommunicator(self, ip, port)
@@ -45,6 +43,11 @@ class LLMNode:
             task.cancel()
         self.communicator._stop()
         print(f"[{self.node_id}  ] Node stopped.")
+    
+    async def join_network(self, target_url: str):
+        """Join the network by connecting to a target node."""
+        await self.communicator._join_network(target_url)
+        print(f"[{self.node_id}  ] Joined network at {target_url}.")
 
 
     async def submit_request(self, prompt: str):
@@ -69,7 +72,7 @@ class LLMNode:
             if req_cnt >= max_req_per_window:
                 continue
 
-            num_queue_reqs = self.models.metrics.get(model_path, {}).get("sglang:num_queue_reqs", None)
+            num_queue_reqs = self.models.metrics[model_path].get("sglang:num_queue_reqs", None)
             if num_queue_reqs is not None and num_queue_reqs == 0:
                 return model_path
         return None
@@ -83,14 +86,15 @@ class LLMNode:
             if req_cnt >= max_req_per_window:
                 continue
 
-            num_queue_reqs = self.models.metrics.get(model_path, {}).get("sglang:num_queue_reqs", None)
+            num_queue_reqs = self.models.metrics[model_path].get("sglang:num_queue_reqs", None)
             if num_queue_reqs is not None:
-                max_num_queue_reqs = self.models.generation_params[model_path].get("max_num_queue_reqs", 10)
+                max_num_queue_reqs = self.models.params[model_path].get("max_num_queue_reqs", 10)
                 if num_queue_reqs < max_num_queue_reqs:
                     return model_path
         return None
 
 
+    # TODO: dynamically adjust the timeout based on the history
     async def _start_timeout_timer(self, request_id: str, timeout: float):
         """Start a timeout timer for a routed request."""
         await asyncio.sleep(timeout)
@@ -116,7 +120,7 @@ class LLMNode:
     async def _dispatch_loop(self):
         """Main loop for dispatching requests."""
         while True:
-            request, source = await self.request_manager.fetch_request()
+            request, source = await self.request_manager.fetch_one_request()
             selected_model = self._select_model_for_dispatch()
 
             if selected_model:
@@ -127,13 +131,8 @@ class LLMNode:
                 target_node_id = await self.communicator.select_node_for_route()
                 if target_node_id:
                     print(f"[{self.node_id}  ] Sending {source} request {request.request_id} from {self.node_id} to {target_node_id}")
-                    comm_request = CommunicateRequest(
-                        sender=self.communicator.address,
-                        type="model",
-                        payload=request
-                    )
-                    _ = await self.communicator.send_request(comm_request, target_id=target_node_id)
-                    asyncio.create_task(self._start_timeout_timer(request.request_id, REQUEST_TIMEOUT))
+                    _ = await self.communicator.send_request(payload=request, type="model", target_id=target_node_id)
+                    asyncio.create_task(self._start_timeout_timer(request.request_id, DEFAULT_REQUEST_TIMEOUT))
                 else:
                     selected_model = self._select_model_for_queue()
                     if selected_model:
