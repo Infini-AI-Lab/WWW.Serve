@@ -1,38 +1,29 @@
-from typing import Union, Dict, Tuple
+from typing import Union, Dict
 from openai import AsyncOpenAI
-from collections import deque
-import yaml
 
 
-from .utils import format_sglang_response, get_sglang_metrics
 from .request import ModelRequest
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .node import LLMNode
+    from .core_node import LLMNode
 
-
-DEFAULT_REQUESTS_PER_WINDOW = 5         # Default requests in the input window
-MAX_REQUESTS_PER_WINDOW = 20            # Max requests in the input window
 
 
 class ModelManager:
-    def __init__(self, node: "LLMNode", config_path):
-        self.node = node
+    """Manager for handling model servers."""
 
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+    def __init__(self, node: "LLMNode", models_config, policy):
+        self.node = node
+        self.policy = policy
 
         self.clients: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.params: Dict[str, Dict] = {}
 
-        self.req_input_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp)]
-        self.req_finish_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp, token_num)]
-        self.metrics: Dict[str, Dict] = {}
         self.stats: Dict[str, Dict] = {}
         self.base_urls: Dict[str, str] = {}
 
-        for model_cfg in config['models']:
+        for model_cfg in models_config:
             model_path = model_cfg['model_path']
             api_key = model_cfg.get('api_key', None)
             base_url = model_cfg.get('base_url', None)
@@ -42,15 +33,14 @@ class ModelManager:
                 api_key=api_key
             )
             self.params[model_path] = model_cfg.get('params', {})
-            self.req_input_windows[model_path] = deque()
-            self.req_finish_windows[model_path] = deque()
-            self.metrics[model_path] = {}
             self.stats[model_path] = {}
             self.base_urls[model_path] = base_url
 
 
     async def inference_request(self, model_path: str, request: ModelRequest):
         """Inferencing user input with the specified model."""
+        self.node.request_manager.record_request_to_model(model_path, request.request_id)
+
         gen_params = self.params[model_path]
         meta_response = await self.clients[model_path].chat.completions.create(
             model = model_path,
@@ -64,7 +54,7 @@ class ModelManager:
         )
         response = {
             "done_by": self.node.node_id,
-            **format_sglang_response(meta_response)
+            **self.policy.format_response(meta_response),
         }
         
         self.node.request_manager.record_request_finish(model_path, request.request_id, meta_response.usage.total_tokens)
@@ -80,38 +70,6 @@ class ModelManager:
             _ = await self.node.communicator.send_request(payload=request, type="model", target_addr=request.source_node_addr.to_url())
 
 
-    async def _record_server_metrics(self):
+    async def record_server_metrics(self):
         """Record server metrics (periodically)."""
-        for model_path in self.clients.keys():
-            server_url = self.base_urls[model_path]
-            metrics = await get_sglang_metrics(server_url, metric_list=
-                                               ["sglang:num_queue_reqs",
-                                                "sglang:token_usage",
-                                                "sglang:num_used_tokens"])
-            if metrics is None:
-                print(f"[{self.node.node_id}  ] Failed to fetch metrics for model {model_path}")
-                continue
-
-            self.metrics[model_path] = {entry["name"]: entry["value"] for entry in metrics}
-
-            token_usage = self.metrics[model_path].get("sglang:token_usage", 0)
-            num_used_tokens = self.metrics[model_path].get("sglang:num_used_tokens", 0)
-
-            self.stats[model_path]["max_token_capacity"] = num_used_tokens / token_usage if token_usage > 0 else num_used_tokens
-            self.stats[model_path]["max_token_usage"] = 1 - token_usage
-
-            avg_req_token_num = self.stats[model_path].get("avg_req_token_num", None)
-            max_token_capacity = self.stats[model_path].get("max_token_capacity", None)
-            if avg_req_token_num is None or max_token_capacity is None:
-                max_req_per_window = DEFAULT_REQUESTS_PER_WINDOW
-            else:
-                usage = (0.8 - token_usage) if token_usage < 0.8 else 0
-                max_req_per_window = min((max_token_capacity * usage) // avg_req_token_num, MAX_REQUESTS_PER_WINDOW)
-                # TODO: min_req_per_window?
-                max_req_per_window = max(DEFAULT_REQUESTS_PER_WINDOW, max_req_per_window)
-
-            self.stats[model_path]["max_req_per_window"] = max_req_per_window
-
-            print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
-            print(f"          {self.metrics[model_path]}")
-            print(f"          {self.stats[model_path]}")
+        await self.policy.record_server_metrics(self)

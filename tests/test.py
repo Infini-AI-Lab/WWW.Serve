@@ -1,8 +1,9 @@
 import _setup_path
-from decentralized_agents.node import LLMNode
+from decentralized_agents.core_node import LLMNode
 import asyncio
 import time
 import json
+
 
 
 async def timed_submit(prompt, node: LLMNode):
@@ -20,25 +21,17 @@ async def simulate_node_crash(node: LLMNode, delay):
 async def main():
     node1 = LLMNode(
         node_id="node1",
-        port=5678,
         config_path="configs/example_node1.yaml",
     )
-    # node2 = LLMNode(
-    #     node_id="node2",
-    #     port=5679,
-    #     config_path="configs/example_node2.yaml",
-    # )
-    # node3 = LLMNode(
-    #     node_id="node3",
-    #     port=5680,
-    #     config_path="configs/example_node3.yaml",
-    # )
-    await node1.start()
-    # await node2.start()
-    # await node3.start()
+    node2 = LLMNode(
+        node_id="node2",
+        config_path="configs/example_node2.yaml",
+    )
 
-    # await node2.join_network(node1.communicator.address.to_url())
-    # await node3.join_network(node2.address.to_url())
+    await node1.start()
+    await node2.start()
+
+    await node2.join_network(node1.communicator.address.to_url())
 
 
     with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
@@ -54,7 +47,7 @@ async def main():
     print(f"All prompts processed in {elapsed:.2f} seconds")
 
 
-    with open("datasets/math500/math500_7B_2.json", "w", encoding="utf-8") as f:
+    with open("datasets/test_results.json", "w", encoding="utf-8") as f:
         json.dump(
             [
                 {

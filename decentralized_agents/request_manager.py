@@ -1,13 +1,14 @@
 import time
 import asyncio
-from typing import Tuple
+from typing import Tuple, Dict
+from collections import deque
 
 from .async_queue import AsyncQueue
 from .request import ModelRequest
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .node import LLMNode
+    from .core_node import LLMNode
 
 
 DEFAULT_INPUT_WINDOW_SIZE = 10             # Input window size (s)
@@ -15,17 +16,25 @@ DEFAULT_FINISH_WINDOW_SIZE = 180           # Finish window size (s)
 
 
 class RequestManager:
-    def __init__(self, node: "LLMNode"):
+    def __init__(self, node: "LLMNode", models_config):
         self.node = node
 
         self.user_request_queue = AsyncQueue()
         self.node_request_queue = AsyncQueue()
 
+        self.req_input_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp)]
+        self.req_finish_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp, token_num)]
+
+        for model in models_config:
+            model_path = model["model_path"]
+            self.req_input_windows[model_path] = deque()
+            self.req_finish_windows[model_path] = deque()
+
 
     def record_request_to_model(self, model_path: str, request_id: str):
         """Record the time for a request sending to a specific model within the window."""
         current_time = time.time()
-        dq = self.node.models.req_input_windows.get(model_path)
+        dq = self.req_input_windows.get(model_path)
         dq.append((request_id, current_time))
 
         while dq and (current_time - dq[0][1]) > DEFAULT_INPUT_WINDOW_SIZE:
@@ -35,7 +44,7 @@ class RequestManager:
     def get_windowed_request_count(self, model_path: str) -> int:
         """Get the number of requests sending to a specific model within the window."""
         current_time = time.time()
-        dq = self.node.models.req_input_windows.get(model_path)
+        dq = self.req_input_windows.get(model_path)
         if not dq:
             return 0
 
@@ -49,7 +58,7 @@ class RequestManager:
         """Record the finish time and token count for a request within the window, 
         and update the request_input_speed."""
         current_time = time.time()
-        dq = self.node.models.req_finish_windows.get(model_path)
+        dq = self.req_finish_windows.get(model_path)
         dq.append((request_id, current_time, token_num))
 
         while dq and (current_time - dq[0][1]) > DEFAULT_FINISH_WINDOW_SIZE:

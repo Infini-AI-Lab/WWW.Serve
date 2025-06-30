@@ -11,7 +11,7 @@ from .request import Address, CommunicateRequest, SyncRequest, ProbeRequest, Mod
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .node import LLMNode
+    from .core_node import LLMNode
 
 
 COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
@@ -26,9 +26,16 @@ class PeerInfo:
     fail_count: int = 0
 
 
+
 class ZmqCommunicator:
-    def __init__(self, node: "LLMNode", ip, port):
+    def __init__(self,
+                 node: "LLMNode",
+                 ip,
+                 port,
+                 policy
+                 ):
         self.node = node
+        self.policy = policy
 
         self.address = Address(
             node_id=self.node.node_id,
@@ -50,7 +57,7 @@ class ZmqCommunicator:
         self.context.term()
 
 
-    async def _sync_peer(self, peers: List[Address]):
+    async def _sync_peers(self, peers: List[Address]):
         """Synchronize the peer list with the provided peers."""
         async with self.zmq_lock:
             for addr in peers:
@@ -80,7 +87,7 @@ class ZmqCommunicator:
         if response:
             raw_peers = response["payload"]["peers"]
             peers = [Address(**p) for p in raw_peers]
-            await self._sync_peer(peers)
+            await self._sync_peers(peers)
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_address}")
 
@@ -124,34 +131,14 @@ class ZmqCommunicator:
             return None
         finally:
             socket.close()
-    
-
-    async def _check_node(self, node_id):
-        try:
-            response = await self.send_request(
-                payload=ProbeRequest(type="probe"),
-                type="probe",
-                target_id=node_id
-            )
-            if response and response["payload"]["response"]:
-                return node_id
-        except Exception as e:
-            print(f"[{self.node.node_id}] Failed to probe node {node_id}: {e}")
-        return None
 
 
     async def select_node_for_route(self) -> Union[str, None]:
         """Select a target node for routing the request."""
-        tasks = [self._check_node(node_id) for node_id in self.peers.keys()]
-        results = await asyncio.gather(*tasks)
-
-        for result in results:
-            if result:
-                return result
-        return None
+        return await self.policy.select_node_for_route(self)
 
 
-    async def _gossip_probe(self):
+    async def gossip_probe(self):
         """Gossip with peers to check their availability and synchronize."""
         peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers)))
         print(f"[{self.node.node_id}  ] Gossiping with: {[node_id for node_id, _ in peer_samples]}")
@@ -167,7 +154,7 @@ class ZmqCommunicator:
                 if response:
                     raw_peers = response["payload"]["peers"]
                     peers = [Address(**p) for p in raw_peers]
-                    await self._sync_peer(peers)
+                    await self._sync_peers(peers)
                 else:
                     # No response from the node
                     print(f"[{self.node.node_id}  ] No response from node {node_id}")
@@ -183,7 +170,7 @@ class ZmqCommunicator:
                     self.peers.pop(node_id, None)
     
 
-    async def _listen(self):
+    async def listen(self):
         try:
             data = await self.receiver.recv()
             json_data = json.loads(data.decode('utf-8'))
@@ -193,7 +180,7 @@ class ZmqCommunicator:
                 # Always update peers on sync
                 raw_peers = json_data["payload"]["peers"]
                 peers = [Address(**p) for p in raw_peers]
-                await self._sync_peer(peers)
+                await self._sync_peers(peers)
 
                 peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
                 comm_request = CommunicateRequest(
@@ -211,7 +198,7 @@ class ZmqCommunicator:
                     type="probe",
                     payload=ProbeRequest(
                         type="response",
-                        response=(self.node._select_model_for_dispatch() is not None)
+                        response=self.policy.can_accept_route(self)
                     )
                 )
                 await self.receiver.send(comm_request.to_json().encode('utf-8'))

@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-from decentralized_agents.node import LLMNode
+from decentralized_agents.core_node import LLMNode
 import asyncio
 import time
 import random
