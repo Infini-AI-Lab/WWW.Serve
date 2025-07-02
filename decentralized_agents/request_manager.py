@@ -31,7 +31,7 @@ class RequestManager:
             self.req_finish_windows[model_path] = deque()
 
 
-    def record_request_to_model(self, model_path: str, request_id: str):
+    def record_request_start(self, model_path: str, request_id: str):
         """Record the time for a request sending to a specific model within the window."""
         current_time = time.time()
         dq = self.req_input_windows.get(model_path)
@@ -41,20 +41,8 @@ class RequestManager:
             dq.popleft()
 
 
-    def get_windowed_request_count(self, model_path: str) -> int:
-        """Get the number of requests sending to a specific model within the window."""
-        current_time = time.time()
-        dq = self.req_input_windows.get(model_path)
-        if not dq:
-            return 0
-
-        while dq and (current_time - dq[0][1]) > DEFAULT_INPUT_WINDOW_SIZE:
-            dq.popleft()
-
-        return len(dq)
-
-
-    def record_request_finish(self, model_path: str, request_id: str, token_num: int):
+    # TODO: Time window or count window, or overall average?
+    def record_request_complete(self, model_path: str, request_id: str, token_num: int):
         """Record the finish time and token count for a request within the window, 
         and update the request_input_speed."""
         current_time = time.time()
@@ -63,9 +51,48 @@ class RequestManager:
 
         while dq and (current_time - dq[0][1]) > DEFAULT_FINISH_WINDOW_SIZE:
             dq.popleft()
-        assert len(dq) > 0, "Finish window should not be empty"
 
-        self.node.models.stats[model_path]["avg_req_token_num"] = sum(t[2] for t in dq) / len(dq)
+
+    def get_windowed_request_count(self, model_path: str) -> int:
+        """Get the number of requests sending to a specific model within the window."""
+        current_time = time.time()
+        dq = self.req_input_windows.get(model_path)
+
+        while dq and (current_time - dq[0][1]) > DEFAULT_INPUT_WINDOW_SIZE:
+            dq.popleft()
+        
+        return len(dq)
+
+
+    def get_windowed_request_average_length(self, model_path: str) -> int:
+        """Get the average length of requests finished within the window."""
+        current_time = time.time()
+        dq = self.req_finish_windows.get(model_path)
+
+        while dq and (current_time - dq[0][1]) > DEFAULT_FINISH_WINDOW_SIZE:
+            dq.popleft()
+
+        return sum(t[2] for t in dq) / len(dq) if dq else 0
+
+
+    async def enque_front_request(self, request: ModelRequest, queue: str = "user"):
+        """Put a user request back into the front of the queue."""
+        if queue == "user":
+            await self.user_request_queue.put_front(request)
+        elif queue == "node":
+            await self.node_request_queue.put_front(request)
+        else:
+            raise ValueError("Queue must be 'user' or 'node'")
+
+
+    async def enque_request(self, request: ModelRequest, queue: str = "user"):
+        """Enqueue a request to the specified queue."""
+        if queue == "user":
+            await self.user_request_queue.put(request)
+        elif queue == "node":
+            await self.node_request_queue.put(request)
+        else:
+            raise ValueError("Queue must be 'user' or 'node'")
 
 
     async def fetch_one_request(self) -> Tuple[ModelRequest, str]:
@@ -78,6 +105,11 @@ class RequestManager:
 
         for task in pending:
             task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            
 
         request = list(done)[0].result()
         source = "user" if done == {get_user} else "node"

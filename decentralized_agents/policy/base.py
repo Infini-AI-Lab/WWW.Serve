@@ -1,26 +1,31 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Tuple
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..core_node import LLMNode
 
 
-class BaseNodePolicy(ABC):
+class BaseDispatchPolicy(ABC):
     """Base class for node policies."""
 
     @abstractmethod
-    async def dispatch_single_request(self, node, request, source):
+    async def dispatch(self, node: "LLMNode", request, source) -> Tuple[Optional[str], Optional[str]]:
         """Dispatch a single request to the appropriate model."""
+        ...
+    
+    @abstractmethod
+    def calculate_max_requests_per_window(self, node: "LLMNode", model_path: str) -> int:
+        """Calculate the maximum requests per window for the model."""
         ...
 
 
 
-class BaseCommunicatorPolicy(ABC):
+class BaseRoutingPolicy(ABC):
     """Base class for communicator policies."""
 
     @abstractmethod
-    async def select_node_for_route(self, comm):
-        """Select a node for routing the request."""
-        ...
-
-    @abstractmethod
-    def can_accept_route(self, node) -> bool:
+    def can_accept_route(self, node: "LLMNode") -> bool:
         """Whether to accept a route for the request."""
         ...
 
@@ -35,7 +40,7 @@ class BaseModelPolicy(ABC):
         ...
 
     @abstractmethod
-    async def record_server_metrics(self, models):
-        """Record server metrics for the model."""
+    async def get_server_metrics(self, node: "LLMNode", model_path: str) -> Tuple[int, int, int, float]:
+        """Get server metrics for the model."""
         ...
 

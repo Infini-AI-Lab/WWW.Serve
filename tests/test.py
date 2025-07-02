@@ -37,7 +37,7 @@ async def main():
     with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # data = data[:20]
+    data = data[:20]
     # asyncio.create_task(simulate_node_crash(node2, delay=5.0))
 
     start = time.time()

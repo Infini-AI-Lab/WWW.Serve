@@ -1,6 +1,6 @@
 from .policy.default_sglang import (
-    DefaultSGLangNodePolicy,
-    DefaultSGLangCommunicatorPolicy,
+    DefaultSGLangDispatchPolicy,
+    DefaultSGLangRoutingPolicy,
     DefaultSGLangModelPolicy
 )
 
@@ -8,6 +8,6 @@ from .policy.default_sglang import (
 
 class PolicyManager:
     def __init__(self):
-        self.node_policy = DefaultSGLangNodePolicy()
-        self.communicator_policy = DefaultSGLangCommunicatorPolicy()
+        self.dispatch_policy = DefaultSGLangDispatchPolicy()
+        self.routing_policy = DefaultSGLangRoutingPolicy()
         self.model_policy = DefaultSGLangModelPolicy()

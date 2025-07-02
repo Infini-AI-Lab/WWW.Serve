@@ -35,6 +35,8 @@ class ModelRequest:
     """Request for model inference."""
     source_node_addr: Address
 
+    route_path: List[str] = field(default_factory=list)  # List of URLs (not Address!) that the request has traversed
+
     CNT: ClassVar[int] = 0
     request_id: int = field(init=False)
     timestamp: float = field(default_factory=time.time)
@@ -46,9 +48,15 @@ class ModelRequest:
     def __post_init__(self):
         self.request_id = ModelRequest.CNT
         ModelRequest.CNT += 1
+    
+
+    def add_route(self, url: str):
+        """Add a URL to the route path."""
+        self.route_path.append(url)
 
 
     def set_response(self, response: Dict):
+        assert self.type == "request", "Cannot set response for a non-request type."
         self.model_result = response
         self.type = "response"
 
@@ -57,6 +65,7 @@ class ModelRequest:
     def from_json(cls, data: Dict) -> "ModelRequest":
         obj = cls(
             source_node_addr=Address(**data["source_node_addr"]),
+            route_path=data.get("route_path", []),
             timestamp=data["timestamp"],
             user_input=data.get("user_input"),
             model_result=data.get("model_result"),
@@ -70,13 +79,14 @@ class ModelRequest:
 class CommunicateRequest:
     """Base class for all zmq-communication requests."""
     sender: Address
+    receiver: Address
+
     type: Literal["sync", "model", "probe"]
     payload: Union[SyncRequest, ModelRequest, ProbeRequest]
 
     CNT: ClassVar[int] = 0
     request_id: int = field(init=False)
     timestamp: float = field(default_factory=time.time)
-
 
     def __post_init__(self):
         self.request_id = CommunicateRequest.CNT

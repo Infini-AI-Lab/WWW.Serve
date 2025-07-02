@@ -13,14 +13,13 @@ if TYPE_CHECKING:
 class ModelManager:
     """Manager for handling model servers."""
 
-    def __init__(self, node: "LLMNode", models_config, policy):
+    def __init__(self, node: "LLMNode", models_config):
         self.node = node
-        self.policy = policy
 
         self.clients: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.params: Dict[str, Dict] = {}
 
-        self.stats: Dict[str, Dict] = {}
+        self.server_stats: Dict[str, Dict] = {}
         self.base_urls: Dict[str, str] = {}
 
         for model_cfg in models_config:
@@ -33,13 +32,19 @@ class ModelManager:
                 api_key=api_key
             )
             self.params[model_path] = model_cfg.get('params', {})
-            self.stats[model_path] = {}
+            self.server_stats[model_path] = {
+                "max_token_capacity": 0,
+                "num_running_reqs": 0,
+                "num_queue_reqs": 0,
+                "token_usage": 0.0,
+                "max_requests_per_window": self.node.policy.dispatch_policy.DEFAULT_REQUESTS_PER_WINDOW,
+            }
             self.base_urls[model_path] = base_url
 
 
     async def inference_request(self, model_path: str, request: ModelRequest):
         """Inferencing user input with the specified model."""
-        self.node.request_manager.record_request_to_model(model_path, request.request_id)
+        self.node.request_manager.record_request_start(model_path, request.request_id)
 
         gen_params = self.params[model_path]
         meta_response = await self.clients[model_path].chat.completions.create(
@@ -54,22 +59,31 @@ class ModelManager:
         )
         response = {
             "done_by": self.node.node_id,
-            **self.policy.format_response(meta_response),
+            **self.node.policy.model_policy.format_response(meta_response),
         }
-        
-        self.node.request_manager.record_request_finish(model_path, request.request_id, meta_response.usage.total_tokens)
+
+        request.set_response(response)
+        self.node.request_manager.record_request_complete(model_path, request.request_id, response["meta_data"]["usage"]["total_tokens"])
         print(f"[{self.node.node_id}  ] Request {request.request_id} finished.")
 
-        if request.source_node_addr == self.node.communicator.address:
-            future = self.node.pending_futures.pop(request.request_id, None)
-            if future and not future.done():
-                future.set_result(response)
-        else:
-            request.set_response(response)
-            print(f"[{self.node.node_id}  ] Sending back request {request.request_id} to {request.source_node_addr.node_id}")
-            _ = await self.node.communicator.send_request(payload=request, type="model", target_addr=request.source_node_addr.to_url())
+        await self.node.handle_response_request(request)
 
 
-    async def record_server_metrics(self):
-        """Record server metrics (periodically)."""
-        await self.policy.record_server_metrics(self)
+    def get_server_stats(self, model_path: str) -> Dict:
+        """Get the server stats for a specific model."""
+        return self.server_stats.get(model_path)
+
+
+    async def update_server_stats(self):
+        """Record server metrics."""
+        for model_path in self.clients.keys():
+            max_token_capacity, num_running_reqs, num_queue_reqs, token_usage = await self.node.policy.model_policy.get_server_metrics(self.node, model_path)
+            self.server_stats[model_path]["max_token_capacity"] = max_token_capacity
+            self.server_stats[model_path]["num_running_reqs"] = num_running_reqs
+            self.server_stats[model_path]["num_queue_reqs"] = num_queue_reqs
+            self.server_stats[model_path]["token_usage"] = token_usage
+
+            self.server_stats[model_path]["max_requests_per_window"] = self.node.policy.dispatch_policy.calculate_max_requests_per_window(self.node, model_path)
+
+            print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
+            print(f"          {self.server_stats[model_path]}")
