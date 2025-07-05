@@ -196,3 +196,5 @@ cython_debug/
 
 datasets/
 configs/
+models/
+tests/test.py

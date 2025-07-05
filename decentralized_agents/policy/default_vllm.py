@@ -11,8 +11,8 @@ from .base import (
 
 
 
-class DefaultSGLangDispatchPolicy(BaseDispatchPolicy):
-    """Default node policy for SGLang."""
+class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
+    """Default node policy for vLLM."""
     MAX_QUEUE_REQS = 10
 
     def _select_model_for_dispatch(self, node):
@@ -60,8 +60,8 @@ class DefaultSGLangDispatchPolicy(BaseDispatchPolicy):
 
 
 
-class DefaultSGLangRoutingPolicy(BaseRoutingPolicy):
-    """Default communicator policy for SGLang."""
+class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
+    """Default communicator policy for vLLM."""
 
     # TODO: not elegant!!!
     def can_accept_route(self, node) -> bool:
@@ -70,17 +70,15 @@ class DefaultSGLangRoutingPolicy(BaseRoutingPolicy):
 
 
 
-class DefaultSGLangModelPolicy(BaseModelPolicy):
-    """Default model policy for SGLang."""
+class DefaultVllmModelPolicy(BaseModelPolicy):
+    """Default model policy for vLLM."""
 
     @staticmethod
-    async def _get_sglang_metrics(
+    async def _get_vllm_metrics(
         server_url: str,
         metric_list: Optional[List[str]] = None
     ) -> Optional[List[Dict]]:
-        """Fetch and optionally filter SGLang Prometheus metrics.
-        
-        Details: https://docs.sglang.ai/references/production_metrics.html
+        """Fetch and optionally filter vLLM Prometheus metrics.
         """
         try:
             async with aiohttp.ClientSession() as session:
@@ -109,10 +107,10 @@ class DefaultSGLangModelPolicy(BaseModelPolicy):
     async def get_server_metrics(self, node, model_path) -> Tuple[int, int, float]:
         """Get server metrics for the model."""
         server_url = node.models.base_urls[model_path]
-        metrics = await self._get_sglang_metrics(server_url, metric_list=
-                                                    ["sglang:num_running_reqs",
-                                                    "sglang:num_queue_reqs",
-                                                    "sglang:token_usage"])
+        metrics = await self._get_vllm_metrics(server_url, metric_list=
+                                                    ["vllm:num_requests_running",
+                                                    "vllm:num_requests_waiting",
+                                                    "vllm:gpu_cache_usage_perc"])
 
         if metrics is None:
             print(f"[{node.node_id}  ] Failed to fetch metrics for model {model_path}")
@@ -120,8 +118,8 @@ class DefaultSGLangModelPolicy(BaseModelPolicy):
 
         raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
 
-        token_usage = raw_metrics.get("sglang:token_usage", 0.0)
-        num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 0)
-        num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 0)
+        token_usage = raw_metrics.get("vllm:gpu_cache_usage_perc", 0.0)
+        num_running_reqs = raw_metrics.get("vllm:num_requests_running", 0)
+        num_queue_reqs = raw_metrics.get("vllm:num_requests_waiting", 0)
 
         return int(num_running_reqs), int(num_queue_reqs), token_usage

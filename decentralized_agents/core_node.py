@@ -24,15 +24,15 @@ class LLMNode:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        self.policy = PolicyManager()
+        self.policy = PolicyManager(policy=config["server_params"]["policy"])
 
         self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
         self.routing_timers: Dict[str, asyncio.Task] = {}  # request_id -> timeout timer task
 
         self.communicator = ZmqCommunicator(
             node=self,
-            ip=config["ip"],
-            port=config["port"],
+            ip=config["server_params"]["ip"],
+            port=config["server_params"]["port"],
         )
         self.models = ModelManager(
             node=self,
@@ -97,7 +97,7 @@ class LLMNode:
         if future and not future.done():
             future.set_result(response)
         else:
-            print(f"[{self.node_id}] Future for request {request_id} already resolved or not found.")
+            print(f"[{self.node_id}  ] Future for request {request_id} not found.")
 
 
     async def _start_timeout_timer(self, request: ModelRequest, timeout: float):
@@ -105,12 +105,14 @@ class LLMNode:
         await asyncio.sleep(timeout)
 
         request.set_response({
-            "status": "timeout",
-            "request_id": request.request_id,
-            "content": None
+            "done_by": self.node_id,
+            "content": "Request timed out.",
+            "meta_data": {
+                "finish_reason": "timeout",
+            }
         })
         self.resolve_future(request)
-        print(f"[{self.node_id}] Request {request.request_id} timed out after {timeout} seconds.")
+        print(f"[{self.node_id}  ] Request {request.request_id} timed out after {timeout} seconds.")
 
 
     async def handle_received_model_request(self, request: ModelRequest):
@@ -156,32 +158,42 @@ class LLMNode:
     async def _gossip_metric_loop(self):
         """Periodically gossip with peers to check their availability, and save server metrics."""
         while True:
-            await self.communicator.gossip_probe()
-            await self.models.update_server_stats()
-            await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
+            try:
+                await self.communicator.gossip_probe()
+                await self.models.update_server_stats()
+                await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
+            
+            except Exception as e:
+                print(f"[{self.node_id}  ] Error in gossip/metric loop: {e}")
+                await asyncio.sleep(1)
 
 
     async def _dispatch_loop(self):
         """Main loop for dispatching requests."""
         while True:
-            request, source = await self.request_manager.fetch_one_request()
-            selected_node_id, selected_model = await self.policy.dispatch_policy.dispatch(self, request, source)
+            try:
+                request, source = await self.request_manager.fetch_one_request()
+                selected_node_id, selected_model = await self.policy.dispatch_policy.dispatch(self, request, source)
 
-            if selected_node_id is None:
-                await self.request_manager.enque_front_request(request, queue=source)
-                await asyncio.sleep(1)  # Avoid busy waiting
-                continue
+                if selected_node_id is None:
+                    await self.request_manager.enque_front_request(request, queue=source)
+                    await asyncio.sleep(1)  # Avoid busy waiting
+                    continue
 
-            if selected_node_id == self.node_id:
-                print(f"[{self.node_id}  ] Dispatching request {request.request_id} using {self.node_id}: {selected_model}")
-                asyncio.create_task(self.models.inference_request(selected_model, request))
+                if selected_node_id == self.node_id:
+                    print(f"[{self.node_id}  ] Dispatching request {request.request_id} using {self.node_id}: {selected_model}")
+                    asyncio.create_task(self.models.inference_request(selected_model, request))
 
-            else:
-                print(f"[{self.node_id}  ] Sending request {request.request_id} from {self.node_id} to {selected_node_id}")
-                _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_id=selected_node_id)
-                self.routing_timers[request.request_id] = asyncio.create_task(
-                    self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
-                )
+                else:
+                    print(f"[{self.node_id}  ] Sending request {request.request_id} from {self.node_id} to {selected_node_id}")
+                    _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_id=selected_node_id)
+                    self.routing_timers[request.request_id] = asyncio.create_task(
+                        self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
+                    )
+            
+            except Exception as e:
+                print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
+                await asyncio.sleep(1)
 
 
     async def _listen_loop(self):
@@ -191,4 +203,4 @@ class LLMNode:
                 await self.communicator.listen()
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in listen loop: {e}")
-                await asyncio.sleep(1)  # Avoid busy waiting
+                await asyncio.sleep(1)

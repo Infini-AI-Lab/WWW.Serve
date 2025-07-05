@@ -13,11 +13,6 @@ class BaseDispatchPolicy(ABC):
     async def dispatch(self, node: "LLMNode", request, source) -> Tuple[Optional[str], Optional[str]]:
         """Dispatch a single request to the appropriate model."""
         ...
-    
-    @abstractmethod
-    def calculate_max_requests_per_window(self, node: "LLMNode", model_path: str) -> int:
-        """Calculate the maximum requests per window for the model."""
-        ...
 
 
 
@@ -35,12 +30,7 @@ class BaseModelPolicy(ABC):
     """Base class for model policies."""
 
     @abstractmethod
-    def format_response(self, response) -> dict:
-        """Format the response from the model."""
-        ...
-
-    @abstractmethod
-    async def get_server_metrics(self, node: "LLMNode", model_path: str) -> Tuple[int, int, int, float]:
+    async def get_server_metrics(self, node: "LLMNode", model_path: str) -> Tuple[int, int, float]:
         """Get server metrics for the model."""
         ...
 
