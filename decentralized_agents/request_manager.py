@@ -1,12 +1,12 @@
 import time
 import asyncio
-from typing import Tuple, Dict
+from typing import Tuple, Dict, TYPE_CHECKING
 from collections import deque
 
 from .async_queue import AsyncQueue
 from .request import ModelRequest
 
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .core_node import LLMNode
 
@@ -91,6 +91,16 @@ class RequestManager:
             await self.user_request_queue.put(request)
         elif queue == "node":
             await self.node_request_queue.put(request)
+        else:
+            raise ValueError("Queue must be 'user' or 'node'")
+
+
+    async def get_queue_size(self, queue = "user") -> int:
+        """Get the size of the request queue."""
+        if queue == "user":
+            return self.user_request_queue.qsize()
+        elif queue == "node":
+            return self.node_request_queue.qsize()
         else:
             raise ValueError("Queue must be 'user' or 'node'")
 

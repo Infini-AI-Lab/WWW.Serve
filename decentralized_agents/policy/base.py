@@ -20,7 +20,7 @@ class BaseRoutingPolicy(ABC):
     """Base class for communicator policies."""
 
     @abstractmethod
-    def can_accept_route(self, node: "LLMNode") -> bool:
+    async def can_accept_route(self, node: "LLMNode") -> bool:
         """Whether to accept a route for the request."""
         ...
 

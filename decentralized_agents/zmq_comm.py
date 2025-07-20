@@ -1,6 +1,6 @@
 import zmq.asyncio
 import asyncio
-from typing import Dict, Union, List
+from typing import Dict, Union, List, TYPE_CHECKING
 import time
 import json
 from dataclasses import dataclass, field
@@ -9,7 +9,6 @@ import random
 from .request import Address, CommunicateRequest, SyncRequest, ProbeRequest, ModelRequest
 
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .core_node import LLMNode
 
@@ -224,7 +223,7 @@ class ZmqCommunicator:
                 type="probe",
                 payload=ProbeRequest(
                     type="response",
-                    response=self.node.policy.routing_policy.can_accept_route(self.node)
+                    response=await self.node.policy.routing_policy.can_accept_route(self.node)
                 )
             )
             await self.receiver.send(comm_request.to_json().encode('utf-8'))

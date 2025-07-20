@@ -154,6 +154,27 @@ class LLMNode:
             _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_url=last_hop)
 
 
+    # def credit_based_routing(request):
+    #     candidates = ledger.get_available_nodes()
+
+    #     stakes = {
+    #         node_id: ledger.get_effective_stake(node_id, request)
+    #         for node_id in candidates
+    #     }
+
+    #     selected_node_id = weighted_random_selection(stakes)
+
+    #     ledger.stake_for_request(
+    #         request_id=request.id,
+    #         staker_id=selected_node_id,
+    #         amount=PREDEFINED_STAKE
+    #     )
+
+    #     communication.send_request(selected_node_id, request)
+
+    #     return selected_node_id, "remote_model"
+
+
 
     async def _gossip_metric_loop(self):
         """Periodically gossip with peers to check their availability, and save server metrics."""
@@ -173,6 +194,9 @@ class LLMNode:
         while True:
             try:
                 request, source = await self.request_manager.fetch_one_request()
+                #######################################
+                # TODO: Handle with CreditLedger!!!!! #
+                #######################################
                 selected_node_id, selected_model = await self.policy.dispatch_policy.dispatch(self, request, source)
 
                 if selected_node_id is None:

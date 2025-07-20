@@ -13,14 +13,14 @@ from .base import (
 
 class DefaultSGLangDispatchPolicy(BaseDispatchPolicy):
     """Default node policy for SGLang."""
-    MAX_QUEUE_REQS = 10
+    MAX_QUEUE_REQS = 100
 
     def _select_model_for_dispatch(self, node):
         """Select a model for dispatching the request based on the current load."""
         for model_path in node.models.clients:
             if not node.models.model_dispatch_available(model_path):
                 continue
-            
+
             server_stats = node.models.get_server_stats(model_path)
             num_queue_reqs = server_stats["num_queue_reqs"]
             if num_queue_reqs == 0:
@@ -64,9 +64,10 @@ class DefaultSGLangRoutingPolicy(BaseRoutingPolicy):
     """Default communicator policy for SGLang."""
 
     # TODO: not elegant!!!
-    def can_accept_route(self, node) -> bool:
+    async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
-        return (node.policy.dispatch_policy._select_model_for_dispatch(node) is not None)
+        return (await node.request_manager.get_queue_size("user") == 0) \
+                and (node.policy.dispatch_policy._select_model_for_dispatch(node) is not None)
 
 
 

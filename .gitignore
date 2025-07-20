@@ -197,4 +197,7 @@ cython_debug/
 datasets/
 configs/
 models/
+
 tests/test.py
+tests/visualize_time.py
+tests/*.png

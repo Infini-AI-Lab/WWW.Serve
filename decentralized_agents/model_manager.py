@@ -1,10 +1,10 @@
-from typing import Union, Dict
+from typing import Union, Dict, TYPE_CHECKING
 from openai import AsyncOpenAI
 
 
 from .request import ModelRequest
 
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .core_node import LLMNode
 
@@ -24,6 +24,7 @@ class ModelManager:
 
         self.clients: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.gen_params: Dict[str, Dict] = {}
+        self.dispatch_params: Dict[str, Dict] = {}
 
         self.server_stats: Dict[str, Dict] = {}
         self.base_urls: Dict[str, str] = {}
@@ -38,11 +39,12 @@ class ModelManager:
                 api_key=api_key
             )
             self.gen_params[model_path] = model_cfg.get('gen_params', {})
+            self.dispatch_params[model_path] = model_cfg.get('dispatch_params', {})
             self.server_stats[model_path] = {
                 "num_running_reqs": 0,
                 "num_queue_reqs": 0,
                 "token_usage": 0.0,
-                "max_requests_per_window": MIN_REQUESTS_PER_WINDOW,
+                "max_requests_per_window": self.dispatch_params[model_path].get("min_requests_per_window", MIN_REQUESTS_PER_WINDOW)
             }
             self.base_urls[model_path] = base_url
 
@@ -67,12 +69,15 @@ class ModelManager:
 
     def _calculate_max_requests_per_window(self, model_path):
         """Calculate the maximum number of requests per window based on token usage."""
+        target_usage = self.dispatch_params[model_path].get("target_token_usage", TARGET_TOKEN_USAGE)
+        min_reqs = self.dispatch_params[model_path].get("min_requests_per_window", MIN_REQUESTS_PER_WINDOW)
+        max_reqs = self.dispatch_params[model_path].get("max_requests_per_window", MAX_REQUESTS_PER_WINDOW)
+
         token_usage = self.server_stats[model_path]["token_usage"]
+        usage_gap = max(0.0, target_usage - token_usage)
+        scaling_factor = usage_gap / target_usage
 
-        usage_gap = max(0.0, TARGET_TOKEN_USAGE - token_usage)
-        scaling_factor = usage_gap / TARGET_TOKEN_USAGE
-
-        estimated_reqs = int(MIN_REQUESTS_PER_WINDOW + scaling_factor * (MAX_REQUESTS_PER_WINDOW - MIN_REQUESTS_PER_WINDOW))
+        estimated_reqs = int(min_reqs + scaling_factor * (max_reqs - min_reqs))
 
         return estimated_reqs
     
@@ -102,7 +107,7 @@ class ModelManager:
                 }],
                 temperature = gen_params.get("temperature", 0.6),
                 top_p = gen_params.get("top_p", 0.95),
-                max_tokens = gen_params.get("max_tokens", 256),  # max_new_tokens
+                max_completion_tokens = gen_params.get("max_tokens", 256),  # max_new_tokens
             )
             response = self._format_response(meta_response)
 

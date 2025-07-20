@@ -64,7 +64,7 @@ class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
     """Default communicator policy for vLLM."""
 
     # TODO: not elegant!!!
-    def can_accept_route(self, node) -> bool:
+    async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
         return (node.policy.dispatch_policy._select_model_for_dispatch(node) is not None)
 

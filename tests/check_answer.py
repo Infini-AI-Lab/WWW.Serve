@@ -1,8 +1,6 @@
 import json
 import re
-from sympy import simplify, N, Eq, S, sympify
-from sympy.parsing.latex import parse_latex
-from sympy.core.sympify import SympifyError
+import numpy as np
 
 
 def preprocess_latex(expr_str):
@@ -11,54 +9,20 @@ def preprocess_latex(expr_str):
 
     expr_str = expr_str.strip()
 
+    expr_str = expr_str.replace(" ", "")
     expr_str = expr_str.replace("\\dfrac", "\\frac")
-    # expr_str = expr_str.replace("\\left(", "(").replace("\\right)", ")")
-    # expr_str = expr_str.replace("\\cdot", "*").replace("\\times", "*")
-
-    # expr_str = re.sub(r"\s+", " ", expr_str)
-    # expr_str = expr_str.replace("\\ ", " ").replace("\\,", " ")
+    expr_str = expr_str.replace("\\left(", "(").replace("\\right)", ")")
+    expr_str = expr_str.replace("\\left[", "[").replace("\\right]", "]")
+    expr_str = expr_str.replace("\\left\\{", "{").replace("\\right\\}", "}")
 
     return expr_str
 
-def safe_parse(expr_str):
-    try:
-        return parse_latex(expr_str)
-    except:
-        try:
-            return sympify(expr_str)
-        except SympifyError:
-            cleaned = re.sub(r"[^0-9+\-*/.()^a-zA-Z]", "", expr_str)
-            return sympify(cleaned)
-        
 
-def normalize_expression(expr_str):
-    if not expr_str:
-        return S(0)
-
-    expr_str = preprocess_latex(expr_str)
-    
-    try:
-        expr = safe_parse(expr_str)
-        return simplify(expr)
-    except Exception as e:
-        print(f"Error parsing '{expr_str}': {str(e)}")
-        return None
-
-
-def is_answer_correct(given, standard, tolerance=1e-6):
-    given_expr = normalize_expression(given)
-    std_expr = normalize_expression(standard)
-    
+def is_answer_correct(given_expr, std_expr, tolerance=1e-6):
     if given_expr is None or std_expr is None:
         return False
 
-    if given_expr.is_Number and std_expr.is_Number:
-        return abs(float(given_expr) - float(std_expr)) < tolerance
-
-    try:
-        return simplify(given_expr - std_expr) == 0
-    except:
-        return False
+    return given_expr in std_expr or std_expr in given_expr
 
 
 def extract_last_boxed_answer(text):
@@ -71,44 +35,75 @@ def extract_last_boxed_answer(text):
     return None
 
 
+def get_whole_answer_and_logprobs(logprobs_dict):
+    ans = ""
+    logprobs_list = []
+
+    for item in logprobs_dict:
+        ans += item["token"]
+        logprobs_list.append(item["logprob"])
+    
+    return ans.strip(), logprobs_list
+
+
 def evaluate_answers(data):
     correct = 0
     total = 0
     results = []
-    
-    for item in data:
+
+    for idx, item in enumerate(data):
         total += 1
-        # true_ans = item["data"]["answer"]
-        true_ans = extract_last_boxed_answer(item["data"]["solution"])
-        model_result = item["result"]["content"]
-        model_ans = extract_last_boxed_answer(model_result)
-        
-        if model_ans is None:
+        if "logprobs_dict" not in item or not item["logprobs_dict"]:
             results.append({
-                "idx": item["data"]["idx"],
-                "true_answer": true_ans,
-                "model_answer": "NO_BOXED_FOUND",
-                "correct": False
+                "idx": idx,
+                "true_answer": None,
+                "model_answer": "NO_LOGPROBS_DICT",
+                "correct": False,
+                "avg_logprob": None,
+                "var_logprob": None
             })
             continue
-            
-        try:
-            is_correct = is_answer_correct(model_ans, true_ans)
+
+        true_ans = item["problem"]["answer"].strip()
+        model_result, logprobs_list = get_whole_answer_and_logprobs(item["logprobs_dict"])
+        model_ans = extract_last_boxed_answer(model_result)
+
+        std_expr = preprocess_latex(true_ans)
+
+        if model_ans is None:
             results.append({
-                "idx": item["data"]["idx"],
-                "true_answer": true_ans,
-                "model_answer": model_ans,
-                "correct": is_correct
+                "idx": idx,
+                "true_answer": std_expr,
+                "model_answer": "NO_BOXED_FOUND",
+                "correct": False,
+                "avg_logprob": None,
+                "var_logprob": None
+            })
+            continue
+        
+
+        try:
+            given_expr = preprocess_latex(model_ans)
+            is_correct = is_answer_correct(given_expr, std_expr)
+            results.append({
+                "idx": idx,
+                "true_answer": std_expr,
+                "model_answer": given_expr,
+                "correct": is_correct,
+                "avg_logprob": np.mean(logprobs_list) if logprobs_list else None,
+                "var_logprob": np.var(logprobs_list) if logprobs_list else None
             })
             if is_correct:
                 correct += 1
         except Exception as e:
             print(f"Error evaluating: {str(e)}")
             results.append({
-                "idx": item["data"]["idx"],
-                "true_answer": true_ans,
-                "model_answer": model_ans,
-                "correct": False
+                "idx": idx,
+                "true_answer": std_expr,
+                "model_answer": given_expr,
+                "correct": False,
+                "avg_logprob": None,
+                "var_logprob": None
             })
     
     accuracy = correct / total if total > 0 else 0
@@ -121,7 +116,7 @@ def evaluate_answers(data):
 
 if __name__ == "__main__":
 
-    json_path = "../test_datasets/aime24/aime24_1.5B_7B.json"
+    json_path = "/home/hywang/Reasoning/temp.json"
 
     with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
