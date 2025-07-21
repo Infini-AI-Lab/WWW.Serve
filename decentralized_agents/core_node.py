@@ -3,6 +3,7 @@ from pathlib import Path
 import asyncio
 import yaml
 
+from .credit_ledger import CreditLedger
 from .request import ModelRequest
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
@@ -40,7 +41,10 @@ class LLMNode:
         )
         self.request_manager = RequestManager(
             node=self,
-            models_config=config["models"]
+            models_config=config["models"],
+        )
+        self.credit_ledger = CreditLedger(
+            node=self,
         )
 
         self._tasks: List[asyncio.Task] = []
@@ -48,9 +52,9 @@ class LLMNode:
 
     async def start(self):
         """Start the node and its main loops."""
+        self._tasks.append(asyncio.create_task(self._listen_loop()))
         self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
         self._tasks.append(asyncio.create_task(self._dispatch_loop()))
-        self._tasks.append(asyncio.create_task(self._listen_loop()))
 
 
     async def stop(self):

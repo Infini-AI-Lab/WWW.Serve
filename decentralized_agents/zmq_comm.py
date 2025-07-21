@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 import random
 
-from .request import Address, CommunicateRequest, SyncRequest, ProbeRequest, ModelRequest
+from .request import Address, CommunicateRequest, JoinRequest, SyncRequest, ProbeRequest, ModelRequest
 
 
 if TYPE_CHECKING:
@@ -50,8 +50,10 @@ class ZmqCommunicator:
         self.context.term()
 
 
-    async def _sync_peers(self, peers: List[Address]):
+    async def _sync_peers(self, peer_list):
         """Synchronize the peer list with the provided peers."""
+        peers = [Address(**p) for p in peer_list]
+
         async with self.zmq_lock:
             for addr in peers:
                 if addr == self.address:
@@ -72,15 +74,17 @@ class ZmqCommunicator:
     async def _join_network(self, peer_address: str):
         """Join the network by synchronizing with a peer."""
         response = await self.prepare_and_send_request(
-            payload=SyncRequest(peers=[self.address]),
-            type="sync",
+            payload=JoinRequest(peers=[self.address], blocks=None),
+            type="join",
             target_url=peer_address
         )
 
         if response:
             raw_peers = response["payload"]["peers"]
-            peers = [Address(**p) for p in raw_peers]
-            await self._sync_peers(peers)
+            await self._sync_peers(raw_peers)
+
+            raw_blocks = response["payload"]["blocks"]
+            self.node.credit_ledger.sync_blocks(raw_blocks)
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_address}")
 
@@ -199,7 +203,24 @@ class ZmqCommunicator:
         json_data = json.loads(data.decode('utf-8'))
         comm_type = json_data["type"]
 
-        if comm_type == "sync":
+        if comm_type == "join":
+            raw_peers = json_data["payload"]["peers"]
+            peers = [Address(**p) for p in raw_peers]
+            await self._sync_peers(peers)
+
+            peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
+            comm_request = CommunicateRequest(
+                sender=self.address,
+                receiver=json_data["sender"],
+                type="join",
+                payload=JoinRequest(
+                    peers=peers_list,
+                    blocks=self.node.credit_ledger.blocks,
+                )
+            )
+            await self.receiver.send(comm_request.to_json().encode('utf-8'))
+
+        elif comm_type == "sync":
             # Always update peers on sync
             raw_peers = json_data["payload"]["peers"]
             peers = [Address(**p) for p in raw_peers]

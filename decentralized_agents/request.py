@@ -17,9 +17,15 @@ class Address:
 
 
 @dataclass
+class JoinRequest:
+    """Request to join the network."""
+    peers: List[Address] = field(default_factory=list)
+    blocks: Optional[List] = None
+
+
+@dataclass
 class SyncRequest:
     """Request to synchronize nodes in the network."""
-    # sync_type: Literal["join", "update"]
     peers: List[Address] = field(default_factory=list)
 
 
@@ -81,8 +87,8 @@ class CommunicateRequest:
     sender: Address
     receiver: Address
 
-    type: Literal["sync", "model", "probe"]
-    payload: Union[SyncRequest, ModelRequest, ProbeRequest]
+    type: Literal["join", "sync", "model", "probe"]
+    payload: Union[JoinRequest, SyncRequest, ModelRequest, ProbeRequest]
 
     CNT: ClassVar[int] = 0
     request_id: int = field(init=False)
