@@ -84,7 +84,7 @@ class ZmqCommunicator:
             await self._sync_peers(raw_peers)
 
             raw_blocks = response["payload"]["blocks"]
-            self.node.credit_ledger.sync_blocks(raw_blocks)
+            await self.node.init_ledger_sync(raw_blocks)
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_address}")
 
@@ -180,8 +180,7 @@ class ZmqCommunicator:
                 )
                 if response:
                     raw_peers = response["payload"]["peers"]
-                    peers = [Address(**p) for p in raw_peers]
-                    await self._sync_peers(peers)
+                    await self._sync_peers(raw_peers)
                 else:
                     # No response from the node
                     print(f"[{self.node.node_id}  ] No response from node {node_id}")
@@ -205,8 +204,7 @@ class ZmqCommunicator:
 
         if comm_type == "join":
             raw_peers = json_data["payload"]["peers"]
-            peers = [Address(**p) for p in raw_peers]
-            await self._sync_peers(peers)
+            await self._sync_peers(raw_peers)
 
             peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
             comm_request = CommunicateRequest(
@@ -215,7 +213,7 @@ class ZmqCommunicator:
                 type="join",
                 payload=JoinRequest(
                     peers=peers_list,
-                    blocks=self.node.credit_ledger.blocks,
+                    blocks=await self.node.credit_ledger.get_blocks(),
                 )
             )
             await self.receiver.send(comm_request.to_json().encode('utf-8'))
@@ -223,8 +221,7 @@ class ZmqCommunicator:
         elif comm_type == "sync":
             # Always update peers on sync
             raw_peers = json_data["payload"]["peers"]
-            peers = [Address(**p) for p in raw_peers]
-            await self._sync_peers(peers)
+            await self._sync_peers(raw_peers)
 
             peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
             comm_request = CommunicateRequest(

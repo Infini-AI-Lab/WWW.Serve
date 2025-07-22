@@ -20,7 +20,7 @@ class Address:
 class JoinRequest:
     """Request to join the network."""
     peers: List[Address] = field(default_factory=list)
-    blocks: Optional[List] = None
+    blocks: Optional[List[Dict]] = None
 
 
 @dataclass

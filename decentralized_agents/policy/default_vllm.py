@@ -84,7 +84,6 @@ class DefaultVllmModelPolicy(BaseModelPolicy):
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{server_url}/metrics", timeout=3) as response:
                     if response.status != 200:
-                        print(f"[ERROR] Failed to fetch metrics from {server_url}, status: {response.status}")
                         return None
                     metrics_text = await response.text()
 
@@ -100,7 +99,6 @@ class DefaultVllmModelPolicy(BaseModelPolicy):
             return parsed_metrics
 
         except Exception as e:
-            print(f"[ERROR] Failed to fetch metrics from {server_url}: {e}")
             return None
 
 

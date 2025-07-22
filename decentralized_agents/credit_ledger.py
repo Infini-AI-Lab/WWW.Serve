@@ -1,5 +1,5 @@
 from typing import List, Dict, Literal, Optional, TYPE_CHECKING
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 import random
 import hashlib
@@ -13,15 +13,15 @@ if TYPE_CHECKING:
 @dataclass
 class CreditAccount:
     node_id: str
+    pubkey: str = None
     credit: float = 0.0
     staked: float = 0.0
     # nonce: int = 0
-    pubkey: str = None
 
 
 @dataclass
 class CreditOperation:
-    op_type: Literal["create", "reward", "penalty", "slash", "stake", "unstake"] # TODO: Add more operation types as needed
+    op_type: Literal["create", "reward", "slash", "stake", "unstake"]
     from_id: str
     to_id: Optional[str] = None
     amount: Optional[float] = None
@@ -32,10 +32,10 @@ class CreditOperation:
 @dataclass
 class CreditBlock:
     block_id: str               # hash(current_block_data)
-    parent_id: str
+    parent_id: Optional[str]
     proposer: str
     signature: str
-    operations: Optional[List[CreditOperation]] = None
+    operations: List[CreditOperation] = field(default_factory=list)
     timestamp: float = time.time()
 
 
@@ -43,8 +43,8 @@ class CreditLedger:
     def __init__(self, node: "LLMNode"):
         self.node = node
 
-        self.public_key = "node.public_key" # TODO: Replace with actual public key retrieval logic
-        self.account = CreditAccount(node_id=self.node.node_id, public_key=self.public_key)
+        self.public_key = self.node.node_id + "_public_key" # TODO: Replace with actual public key retrieval logic
+        self.account: CreditAccount = None
 
         self.accounts: Dict[str, CreditAccount] = {}
         self.accounts_lock = asyncio.Lock()
@@ -60,45 +60,77 @@ class CreditLedger:
         self.pending_ops: List[CreditOperation] = []
         self.pending_ops_lock = asyncio.Lock()
 
-        self._init_blocks()
+        self._new_op_event = asyncio.Event()
+
+        asyncio.create_task(self._block_producer_loop())
 
 
-    def _init_blocks(self):
-        register_op = CreditOperation(
-            op_type="create",
-            from_id=self.node.node_id,
-            metadata={"public_key": self.public_key}
-        )
-        self._submit_operation(register_op)
 
-        # Create genesis block, which may be overridden by the first block from the network.
+    @classmethod
+    async def init_genesis(cls, node: "LLMNode") -> "CreditLedger":
+        """Initialize the CreditLedger with a genesis block."""
+        self = cls(node)
+
         time_stamp = time.time()
         block_id = self._compute_block_id("GENESIS", None, time_stamp)
         genesis_block = CreditBlock(
             block_id=block_id,
-            parent_id=block_id,
+            parent_id=None,
             proposer=self.node.node_id,
             signature=self._sign_block("GENESIS", None, time_stamp),
-            operations=None,
+            operations=[],
             timestamp=time_stamp,
         )
-        with self.blocks_lock:
+
+        async with self.blocks_lock:
             self.blocks.append(genesis_block)
             self.block_index[block_id] = genesis_block
             self.chain_head = block_id
-        print(f"✅ Genesis block created by {self.node.node_id}")
+
+        await self.create_account()
+
+        return self
 
 
-    def sync_blocks(self, block_list):
+    @classmethod
+    async def init_sync(cls, node: "LLMNode", block_list: List[Dict]) -> "CreditLedger":
+        """Initialize the CreditLedger with the given node."""
+        self = cls(node)
+
+        for block_data in block_list:
+            block = CreditBlock(**block_data)
+            stat = await self._apply_block(block)
+            if not stat:
+                return None
+
+        await self.create_account()
+
+        return self
+
+
+    async def create_account(self):
+        """Create a new credit account."""
+        create_op = CreditOperation(
+            op_type="create",
+            from_id=self.node.node_id,
+            to_id=None,
+            amount=0.0,
+            metadata={"public_key": self.public_key},
+        )
+        await self._submit_operation(create_op)
+
+
+    async def get_blocks(self) -> List[Dict]:
+        """Get the list of blocks in the ledger."""
+        async with self.blocks_lock:
+            return [block.__dict__ for block in self.blocks]
+
+
+    async def sync_blocks(self, block_list):
         """Sync blocks from another node."""
-        with self.blocks_lock:
-            self.blocks = [CreditBlock(**b) for b in block_list]
-            self.block_index = {block.block_id: block for block in self.blocks}
-            self.chain_head = self.blocks[-1].block_id
-
-        for block in self.blocks:
-            for op in block.operations:
-                self._apply_operation(op)
+        # TODO: Handle the genesis block
+        for block in block_list:
+            await self._apply_block(block)
 
 
     # TODO: VRF?
@@ -121,55 +153,61 @@ class CreditLedger:
 
     async def broadcast_block(self, block: CreditBlock):
         """Broadcast a new block to the network."""
-        # This method should send the block to other nodes in the network.
-        # For now, we will just print it.
-        print(f"[Ledger] Broadcasting block {block.block_id} from {block.proposer} with {len(block.operations)} operations.")
+        print(f"[{self.node.node_id}  ] Broadcasting block {block.block_id} from {block.proposer} with {len(block.operations)} operations.")
 
 
-    def _submit_operation(self, op: CreditOperation):
+    async def _submit_operation(self, op: CreditOperation):
         """Submit a new credit operation to the pending_ops."""
         if self._verify_operation(op):
-            with self.pending_ops_lock:
+            async with self.pending_ops_lock:
                 self.pending_ops.append(op)
+            self._new_op_event.set()
+        else:
+            print(f"[{self.node.node_id}  ] Invalid operation: {op.op_type}")
 
 
-    def _apply_block(self, block: CreditBlock) -> bool:
+    async def _apply_block(self, block: CreditBlock) -> bool:
         """Apply a new block to the chain."""
         if not self._verify_block(block):
-            print(f"[Ledger] Block {block.block_id} failed verification.")
+            print(f"[{self.node.node_id}  ] Block {block.block_id} failed verification.")
             return False
 
-        with self.blocks_lock:
+        async with self.blocks_lock:
             self.blocks.append(block)
             self.block_index[block.block_id] = block
             self.chain_head = block.block_id
 
         for op in block.operations:
-            self._apply_operation(op)
+            await self._apply_operation(op)
+
+        print(f"[{self.node.node_id}  ] Block {block.block_id} applied successfully: {[block.block_id for block in self.blocks]}")
 
         return True
 
 
-    def _apply_operation(self, op: CreditOperation):
+    async def _apply_operation(self, op: CreditOperation):
         """Apply a single credit operation to accounts."""
-        with self.accounts_lock:
-            if op.op_type == "reward":
+        async with self.accounts_lock:
+            op_type = op.op_type
+            if op_type == "create":
+                if op.from_id not in self.accounts:
+                    self.accounts[op.from_id] = CreditAccount(node_id=op.from_id, pubkey=op.metadata.get("public_key", None))
+                else:
+                    print(f"[{self.node.node_id}  ] Account {op.from_id} already exists.")
+
+            elif op_type == "reward":
                 self.accounts[op.to_id].credit += op.amount
 
-            elif op.op_type == "stake":
+            elif op_type == "stake":
                 acct = self.accounts[op.from_id]
                 acct.credit -= op.amount
                 acct.staked += op.amount
 
 
+
     def _verify_block_signature(self, block: CreditBlock) -> bool:
         """Verify a signature for a given node and data."""
-        return True  # TODO: Implement actual signature verification logic
-
-
-    def _verify_op_signature(self, op) -> bool:
-        """Verify a signature for a credit operation."""
-        return True  # TODO: Implement actual signature verification logic
+        return block.signature == "signature_" + block.proposer  # TODO: Implement actual signature verification logic
 
 
     def _verify_block(self, block: CreditBlock) -> bool:
@@ -177,7 +215,8 @@ class CreditLedger:
         if block.parent_id and (block.parent_id not in self.block_index):
             return False
 
-        self._verify_block_signature(block)
+        if not self._verify_block_signature(block):
+            return False
 
         for op in block.operations:
             if not self._verify_operation(op):
@@ -187,13 +226,39 @@ class CreditLedger:
 
     def _verify_operation(self, op: CreditOperation) -> bool:
         """ Verify a single credit operation."""
-        acct = self.accounts.get(op.from_id)
-        if acct is None:
+        op_type = op.op_type
+        if op_type == "create":
+            if op.from_id in self.accounts:
+                return False
+            return True  # Creation is valid if the account does not exist
+
+        # elif op_type == "reward":
+        #     if op.to_id not in self.accounts:
+        #         return False
+        #     if op.amount is None or op.amount <= 0:
+        #         return False
+
+        # elif op_type == "slash":
+        #     if op.from_id not in self.accounts:
+        #         return False
+        #     if op.amount is None or op.amount <= 0:
+        #         return False
+
+        # elif op_type == "stake":
+        #     if op.from_id not in self.accounts or op.to_id not in self.accounts:
+        #         return False
+        #     if op.amount is None or op.amount <= 0:
+        #         return False
+
+        # elif op_type == "unstake":
+        #     if op.from_id not in self.accounts or op.to_id not in self.accounts:
+        #         return False
+        #     if op.amount is None or op.amount <= 0:
+        #         return False
+
+        else:
+            print(f"[{self.node.node_id}  ] Unknown operation type: {op_type}")
             return False
-
-        self._verify_op_signature(op)
-
-        return True
 
 
     def _create_block(self, ops: List[CreditOperation]) -> CreditBlock:
@@ -209,6 +274,7 @@ class CreditLedger:
             operations=ops,
             signature=self._sign_block(parent_id, ops, timestamp),
         )
+        print(f"[{self.node.node_id}  ] Created block {block.block_id} with {len(ops)} ops, parent {parent_id}")
         return block
 
 
@@ -231,16 +297,33 @@ class CreditLedger:
 
 
     async def _block_producer_loop(self):
-        """Periodically create and broadcast new blocks."""
+        """Triggered block production: respond to incoming ops or timeout."""
+        ### If many ops come within a short time, some may be delayed (which might be bearable).
+        ### TODO: Implement a more sophisticated batching mechanism.
+
+        BATCH_SIZE = 1
+        TIMEOUT = 3
+        
         while True:
             try:
-                if self.pending_ops:
-                    with self.pending_ops_lock:
-                        block = self._create_block(self.pending_ops)
-                        if self._apply_block(block):
-                            await self.broadcast_block(block)
-                            self.pending_ops.clear()
-                await asyncio.sleep(5)  # Adjust the interval as needed
+                try:
+                    await asyncio.wait_for(self._new_op_event.wait(), timeout=TIMEOUT)
+                except asyncio.TimeoutError:
+                    pass
+
+                async with self.pending_ops_lock:
+                    self._new_op_event.clear()
+
+                    if not self.pending_ops:
+                        continue
+
+                    ops_to_pack = self.pending_ops[:BATCH_SIZE]
+                    block = self._create_block(ops_to_pack)
+
+                    if await self._apply_block(block):
+                        await self.broadcast_block(block)
+                        self.pending_ops = self.pending_ops[BATCH_SIZE:]
+
             except Exception as e:
-                print(f"[Ledger] Error in block producer loop: {e}")
+                print(f"[{self.node.node_id}  ] Error in block producer loop: {e}")
                 await asyncio.sleep(1)

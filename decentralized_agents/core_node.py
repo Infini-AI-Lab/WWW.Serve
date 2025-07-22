@@ -1,4 +1,4 @@
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Optional
 from pathlib import Path
 import asyncio
 import yaml
@@ -18,7 +18,7 @@ DEFAULT_REQUEST_TIMEOUT = 300      # Default timeout for routed requests (s)
 class LLMNode:
     def __init__(self,
                  node_id: str,
-                 config_path: Union[Path, str]
+                 config_path: Union[Path, str],
                  ):
         self.node_id = node_id
 
@@ -29,6 +29,7 @@ class LLMNode:
 
         self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
         self.routing_timers: Dict[str, asyncio.Task] = {}  # request_id -> timeout timer task
+        self._tasks: List[asyncio.Task] = []
 
         self.communicator = ZmqCommunicator(
             node=self,
@@ -43,11 +44,24 @@ class LLMNode:
             node=self,
             models_config=config["models"],
         )
-        self.credit_ledger = CreditLedger(
-            node=self,
-        )
 
-        self._tasks: List[asyncio.Task] = []
+
+    @classmethod
+    async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
+        """Initialize the LLMNode with the given configuration."""
+        node = cls(node_id=node_id, config_path=config_path)
+
+        if is_genesis:
+            node.credit_ledger = await CreditLedger.init_genesis(node)
+        else:
+            node.credit_ledger = None  # Only initialized when joining the network
+
+        return node
+
+
+    async def init_ledger_sync(self, block_list: List[Dict]):
+        """Initialize the credit ledger with the provided block list."""
+        self.credit_ledger = await CreditLedger.init_sync(self, block_list)
 
 
     async def start(self):
@@ -67,12 +81,12 @@ class LLMNode:
                 pass
         self.communicator._stop()
         print(f"[{self.node_id}  ] Node stopped.")
+    
 
-
-    async def join_network(self, target_url: str):
-        """Join the network by connecting to a target node."""
-        await self.communicator._join_network(target_url)
-        print(f"[{self.node_id}  ] Joined network at {target_url}.")
+    async def join_network(self, join_network_url: str):
+        """Join the network at the specified URL."""
+        await self.communicator._join_network(join_network_url)
+        print(f"[{self.node_id}  ] Joined network at {join_network_url}.")
 
 
     async def submit_request(self, prompt: str):
