@@ -2,11 +2,10 @@ import zmq.asyncio
 import asyncio
 from typing import Dict, Union, List, TYPE_CHECKING
 import time
-import json
-from dataclasses import dataclass, field
 import random
 
-from .request import Address, CommunicateRequest, JoinRequest, SyncRequest, ProbeRequest, ModelRequest
+
+from .request import Address, PeerInfo, CommRequest, NodeRequest, ModelRequest, EmptyRequest
 
 
 if TYPE_CHECKING:
@@ -14,15 +13,6 @@ if TYPE_CHECKING:
 
 
 COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
-
-
-@dataclass
-class PeerInfo:
-    """Information of a peer node."""
-    node_id: str
-    address: Address
-    last_update: float = field(default_factory=time.time)
-    fail_count: int = 0
 
 
 
@@ -50,12 +40,11 @@ class ZmqCommunicator:
         self.context.term()
 
 
-    async def _sync_peers(self, peer_list):
+    async def _sync_peers(self, peer_list: List):
         """Synchronize the peer list with the provided peers."""
-        peers = [Address(**p) for p in peer_list]
 
         async with self.zmq_lock:
-            for addr in peers:
+            for addr in peer_list:
                 if addr == self.address:
                     continue
 
@@ -71,42 +60,47 @@ class ZmqCommunicator:
                         print(f"[{self.node.node_id}  ] Updated peer {addr.node_id} address to {addr.to_url()}")
 
 
-    async def _join_network(self, peer_address: str):
+    async def _join_network(self, peer_url: str):
         """Join the network by synchronizing with a peer."""
         response = await self.prepare_and_send_request(
-            payload=JoinRequest(peers=[self.address], blocks=None),
-            type="join",
-            target_url=peer_address
+            payload=NodeRequest(
+                type="join",
+                known_peers=[self.address],
+            ),
+            type="NodeRequest",
+            target_url=peer_url
         )
 
         if response:
-            raw_peers = response["payload"]["peers"]
-            await self._sync_peers(raw_peers)
+            peers = response.payload.known_peers
+            await self._sync_peers(peers)
 
-            raw_blocks = response["payload"]["blocks"]
-            await self.node.init_ledger_sync(raw_blocks)
+            blocks = response.payload.known_blocks
+            await self.node.init_ledger_sync(blocks)
+
+            print(f"[{self.node.node_id}  ] Joined network at {peer_url}.")
         else:
-            print(f"[{self.node.node_id}  ] Failed to join network at {peer_address}")
+            print(f"[{self.node.node_id}  ] Failed to join network at {peer_url}")
 
 
-    async def _send_request(self, comm_request: CommunicateRequest) -> Union[Dict, None]:
+    async def _send_request(self, comm_request: CommRequest) -> Union[Dict, None]:
         """Send a communication request."""
-        target_url = comm_request.receiver
+        target_url = comm_request.receiver.to_url()
 
         socket = self.context.socket(zmq.REQ)
         socket.setsockopt(zmq.LINGER, 0)
 
         try:
             socket.connect(target_url)
-            await socket.send(comm_request.to_json().encode('utf-8'))
+            await socket.send_json(comm_request.model_dump())
 
             poller = zmq.asyncio.Poller()
             poller.register(socket, zmq.POLLIN)
             socks = await poller.poll(timeout=COMM_RESPONSE_TIMEOUT)
 
             if socks and any(event == zmq.POLLIN and sock == socket for sock, event in socks):
-                response = await socket.recv()
-                return json.loads(response.decode('utf-8'))
+                response = await socket.recv_json()
+                return response
             return None
 
         except Exception as e:
@@ -117,36 +111,51 @@ class ZmqCommunicator:
             socket.close()
 
 
-    async def prepare_and_send_request(self, payload, type: str, target_id: str = None, target_url: str = None) -> Union[Dict, None]:
+    async def prepare_and_send_request(self, payload, type: str, target_id: str = None, target_url: str = None) -> Union[CommRequest, None]:
         """Prepare and send a request to a target node or address."""
         assert target_id or target_url, "Either target_id or target_addr must be provided."
 
-        if target_url is None:
-            async with self.zmq_lock:
-                target_url = self.peers[target_id].address.to_url()
 
-        if type == "model":
+        if target_id:
+            async with self.zmq_lock:
+                target_address = self.peers.get(target_id, None)
+            if target_address is None:
+                print(f"[{self.node.node_id}  ] Target node {target_id} not found in peers.")
+                return None
+            target_url = target_address.address.to_url()
+        else:
+            target_address = Address.from_url(target_url)
+
+
+        if type == "ModelRequest":
             assert isinstance(payload, ModelRequest), "Payload must be a ModelRequest for 'model' type."
             payload.add_route(target_url)
 
-        comm_request = CommunicateRequest(
+        comm_request = CommRequest(
             sender=self.address,
-            receiver=target_url,
+            receiver=target_address,
             type=type,
             payload=payload
         )
 
-        return await self._send_request(comm_request)
+        response = await self._send_request(comm_request)
+        if response is None:
+            print(f"[{self.node.node_id}  ] No response from {target_url}.")
+            return None
+
+        return CommRequest.model_validate(response)
 
 
     async def _check_node(self, node_id):
         try:
             response = await self.prepare_and_send_request(
-                payload=ProbeRequest(type="probe"),
-                type="probe",
+                payload=NodeRequest(
+                    type="probe",
+                ),
+                type="NodeRequest",
                 target_id=node_id
             )
-            if response and response["payload"]["response"]:
+            if response and response.payload.can_accept:
                 return node_id
         except Exception as e:
             print(f"[{self.node.node_id}] Failed to probe node {node_id}: {e}")
@@ -164,23 +173,61 @@ class ZmqCommunicator:
         return None
 
 
+    # async def _safe_send_block(self, peer: PeerInfo, block):
+    #     try:
+    #         response = await self.prepare_and_send_request(
+    #             payload=NodeRequest(
+    #                 type="broadcast",
+    #                 known_blocks=[block]
+    #             ),
+    #             type="NodeRequest",
+    #             target_url=peer.address.to_url()
+    #         )
+
+    #     except Exception as e:
+    #         print(f"[{self.node.node_id}  ] Failed to send block {block.block_id} to {peer.address.to_url()}: {e}")
+
+
+    async def broadcast_block(self, block):
+        """Broadcast a new block to all peers."""
+        tasks = []
+        for peer in self.peers.values():
+            if peer.address == self.address:
+                continue
+
+            task = asyncio.create_task(
+                self.prepare_and_send_request(
+                    payload=NodeRequest(
+                        type="broadcast",
+                        known_blocks=[block]
+                    ),
+                    type="NodeRequest",
+                    target_url=peer.address.to_url()
+                )
+            )
+            tasks.append(task)
+
+        await asyncio.gather(*tasks)
+
+
+
     async def gossip_probe(self):
         """Gossip with peers to check their availability and synchronize."""
         peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers)))
-        print(f"[{self.node.node_id}  ] Gossiping with: {[node_id for node_id, _ in peer_samples]}")
 
         for node_id, peer_info in peer_samples:
             try:
                 response = await self.prepare_and_send_request(
-                    payload=SyncRequest(
-                        peers=[peer.address for peer in self.peers.values()] + [self.address]
+                    payload=NodeRequest(
+                        type="sync",
+                        known_peers=[peer.address for peer in self.peers.values()] + [self.address]
                     ),
-                    type="sync",
+                    type="NodeRequest",
                     target_url=peer_info.address.to_url()
                 )
                 if response:
-                    raw_peers = response["payload"]["peers"]
-                    await self._sync_peers(raw_peers)
+                    peers = response.payload.known_peers
+                    await self._sync_peers(peers)
                 else:
                     # No response from the node
                     print(f"[{self.node.node_id}  ] No response from node {node_id}")
@@ -198,55 +245,103 @@ class ZmqCommunicator:
     
 
     async def listen(self):
-        data = await self.receiver.recv()
-        json_data = json.loads(data.decode('utf-8'))
-        comm_type = json_data["type"]
+        json_data = await self.receiver.recv_json()
+        comm_request = CommRequest.model_validate(json_data)
 
-        if comm_type == "join":
-            raw_peers = json_data["payload"]["peers"]
-            await self._sync_peers(raw_peers)
+        comm_type = comm_request.type
+        sender = comm_request.sender
 
-            peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
-            comm_request = CommunicateRequest(
-                sender=self.address,
-                receiver=json_data["sender"],
-                type="join",
-                payload=JoinRequest(
-                    peers=peers_list,
-                    blocks=await self.node.credit_ledger.get_blocks(),
+        if comm_type == "NodeRequest":
+            req_type = comm_request.payload.type
+
+            if req_type == "join":
+                peers = comm_request.payload.known_peers
+                await self._sync_peers(peers)
+
+                peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
+                comm_request = CommRequest(
+                    sender=self.address,
+                    receiver=sender,
+                    type="NodeRequest",
+                    payload=NodeRequest(
+                        type="join",
+                        known_peers=peers_list,
+                        known_blocks=await self.node.credit_ledger.get_blocks(),
+                    )
                 )
-            )
-            await self.receiver.send(comm_request.to_json().encode('utf-8'))
+                await self.receiver.send_json(comm_request.model_dump())
 
-        elif comm_type == "sync":
-            # Always update peers on sync
-            raw_peers = json_data["payload"]["peers"]
-            await self._sync_peers(raw_peers)
+            elif req_type == "sync":
+                # Always update peers on sync
+                peers = comm_request.payload.known_peers
+                await self._sync_peers(peers)
 
-            peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
-            comm_request = CommunicateRequest(
-                sender=self.address,
-                receiver=json_data["sender"],
-                type="sync",
-                payload=SyncRequest(
-                    peers=peers_list,
+                peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
+                comm_request = CommRequest(
+                    sender=self.address,
+                    receiver=sender,
+                    type="NodeRequest",
+                    payload=NodeRequest(
+                        type="sync",
+                        known_peers=peers_list,
+                    )
                 )
-            )
-            await self.receiver.send(comm_request.to_json().encode('utf-8'))
+                await self.receiver.send_json(comm_request.model_dump())
 
-        elif comm_type == "probe":
-            comm_request = CommunicateRequest(
-                sender=self.address,
-                receiver=json_data["sender"],
-                type="probe",
-                payload=ProbeRequest(
-                    type="response",
-                    response=await self.node.policy.routing_policy.can_accept_route(self.node)
+            elif req_type == "probe":
+                can_accept = await self.node.policy.routing_policy.can_accept_route(self.node)
+                comm_request = CommRequest(
+                    sender=self.address,
+                    receiver=sender,
+                    type="NodeRequest",
+                    payload=NodeRequest(
+                        type="probe",
+                        can_accept=can_accept
+                    )
                 )
-            )
-            await self.receiver.send(comm_request.to_json().encode('utf-8'))
+                await self.receiver.send_json(comm_request.model_dump())
 
-        elif comm_type == "model":
-            await self.receiver.send(b"{}")
-            request = ModelRequest.from_json(json_data["payload"])
-            await self.node.handle_received_model_request(request)
+            elif req_type == "broadcast":
+                empty_request = CommRequest(
+                    sender=self.address,
+                    receiver=sender,
+                    type="EmptyRequest",
+                    payload=EmptyRequest()
+                )
+                await self.receiver.send_json(empty_request.model_dump())
+
+                new_block = comm_request.payload.known_blocks[0]
+                await self.node.credit_ledger.receive_block(new_block)
+
+            else:
+                empty_request = CommRequest(
+                    sender=self.address,
+                    receiver=sender,
+                    type="EmptyRequest",
+                    payload=EmptyRequest()
+                )
+                await self.receiver.send_json(empty_request.model_dump())
+                print(f"[{self.node.node_id}  ] Unknown NodeRequest type: {req_type}")
+
+
+        elif comm_type == "ModelRequest":
+            empty_request = CommRequest(
+                sender=self.address,
+                receiver=sender,
+                type="EmptyRequest",
+                payload=EmptyRequest()
+            )
+            await self.receiver.send_json(empty_request.model_dump())
+    
+            model_request = comm_request.payload
+            await self.node.handle_received_model_request(model_request)
+        
+        else:
+            empty_request = CommRequest(
+                sender=self.address,
+                receiver=sender,
+                type="EmptyRequest",
+                payload=EmptyRequest()
+            )
+            await self.receiver.send_json(empty_request.model_dump())
+            print(f"[{self.node.node_id}  ] Unknown communication type: {comm_type}")

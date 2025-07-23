@@ -114,7 +114,6 @@ class DefaultSGLangModelPolicy(BaseModelPolicy):
                                                     "sglang:token_usage"])
 
         if metrics is None:
-            print(f"[{node.node_id}  ] Failed to fetch metrics for model {model_path}")
             return 0, 0, 0.0
 
         raw_metrics = {entry["name"]: entry["value"] for entry in metrics}

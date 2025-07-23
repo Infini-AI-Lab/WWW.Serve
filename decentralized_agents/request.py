@@ -1,103 +1,131 @@
-import uuid
+from uuid import uuid4
 import time
-from typing import List, Dict, Literal, ClassVar, Optional, Union
-from dataclasses import dataclass, field, asdict
-import json
+from typing import List, Literal, ClassVar, Optional, Union
+from pydantic import BaseModel, Field, ConfigDict
 
 
-@dataclass
-class Address:
-    """A node's address in the network."""
+from .block import CreditBlock
+
+
+
+class Address(BaseModel):
     node_id: str
     port: int
     ip: str = "127.0.0.1"
+
 
     def to_url(self) -> str:
         return f"tcp://{self.ip}:{self.port}"
 
 
-@dataclass
-class JoinRequest:
-    """Request to join the network."""
-    peers: List[Address] = field(default_factory=list)
-    blocks: Optional[List[Dict]] = None
+    @classmethod
+    def from_url(cls, url: str) -> "Address":
+        parts = url.split("://")[1].split(":")
+        return cls(node_id="UNKNOWN", ip=parts[0], port=int(parts[1]))
 
 
-@dataclass
-class SyncRequest:
-    """Request to synchronize nodes in the network."""
-    peers: List[Address] = field(default_factory=list)
+class PeerInfo(BaseModel):
+    """Information of a peer node."""
+    node_id: str
+    address: Address
+    last_update: float = Field(default_factory=time.time)
+    fail_count: int = 0
+
+    model_config = dict(arbitrary_types_allowed=True)
 
 
-@dataclass
-class ProbeRequest:
-    """Request to probe the network for available nodes."""
-    type: Literal["probe", "response"] = "probe"
-    response: Optional[bool] = False
+
+class NodeRequest(BaseModel):
+    type: Literal["join", "sync", "probe", "broadcast"]
+    node_request_id: int = Field(default_factory=lambda: NodeRequest._next_id())
+
+    known_peers: Optional[List[Address]] = None
+    known_blocks: Optional[List[CreditBlock]] = None
+    can_accept: Optional[bool] = None
+
+    timestamp: float = Field(default_factory=time.time)
+
+    _cnt: ClassVar[int] = 0
+
+    model_config = dict(arbitrary_types_allowed=True)
+
+    @classmethod
+    def _next_id(cls) -> int:
+        val = cls._cnt
+        cls._cnt += 1
+        return val
 
 
-@dataclass
-class ModelRequest:
-    """Request for model inference."""
-    source_node_addr: Address
+# class ConsensusMessage(BaseModel):
+#     subtype: Literal["propose_block", "vote", "reward", "slash"]
+#     proposer_id: str
+#     signature: str
+#     block_data: Optional[Dict] = None
+#     vote_result: Optional[bool] = None
+#     timestamp: float = Field(default_factory=time.time)
 
-    route_path: List[str] = field(default_factory=list)  # List of URLs (not Address!) that the request has traversed
 
-    CNT: ClassVar[int] = 0
-    request_id: int = field(init=False)
-    timestamp: float = field(default_factory=time.time)
-    user_input: Optional[str] = None
-    model_result: Optional[Dict] = None
+
+
+class ModelRequest(BaseModel):
     type: Literal["request", "response"] = "request"
+    model_request_id: int = Field(default_factory=lambda: ModelRequest._next_id())
+
+    source_node_addr: Address
+    route_path: List[str] = Field(default_factory=list)  # URLs of nodes in the route
+
+    user_input: Optional[str] = None
+    model_result: Optional[dict] = None
+
+    timestamp: float = Field(default_factory=time.time)
+
+    _cnt: ClassVar[int] = 0
+
+    # Allow arbitrary types in the Pydantic model
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-    def __post_init__(self):
-        self.request_id = ModelRequest.CNT
-        ModelRequest.CNT += 1
-    
+    @classmethod
+    def _next_id(cls) -> int:
+        val = cls._cnt
+        cls._cnt += 1
+        return val
+
 
     def add_route(self, url: str):
-        """Add a URL to the route path."""
         self.route_path.append(url)
 
 
-    def set_response(self, response: Dict):
-        assert self.type == "request", "Cannot set response for a non-request type."
+    def set_response(self, response: dict):
+        assert self.type == "request", "Cannot set response for a non-request."
         self.model_result = response
         self.type = "response"
 
 
-    @classmethod
-    def from_json(cls, data: Dict) -> "ModelRequest":
-        obj = cls(
-            source_node_addr=Address(**data["source_node_addr"]),
-            route_path=data.get("route_path", []),
-            timestamp=data["timestamp"],
-            user_input=data.get("user_input"),
-            model_result=data.get("model_result"),
-            type=data["type"]
-        )
-        obj.request_id = data["request_id"]
-        return obj
+
+class EmptyRequest(BaseModel):
+    type: Literal["empty"] = "empty"
 
 
-@dataclass
-class CommunicateRequest:
-    """Base class for all zmq-communication requests."""
+
+class CommRequest(BaseModel):
     sender: Address
     receiver: Address
 
-    type: Literal["join", "sync", "model", "probe"]
-    payload: Union[JoinRequest, SyncRequest, ModelRequest, ProbeRequest]
+    type: Literal["NodeRequest", "ModelRequest", "EmptyRequest"]
+    payload: Union[NodeRequest, ModelRequest, EmptyRequest]
 
-    CNT: ClassVar[int] = 0
-    request_id: int = field(init=False)
-    timestamp: float = field(default_factory=time.time)
+    comm_request_id: int = Field(default_factory=lambda: CommRequest._next_id())
+    timestamp: float = Field(default_factory=time.time)
 
-    def __post_init__(self):
-        self.request_id = CommunicateRequest.CNT
-        CommunicateRequest.CNT += 1
+    _cnt: ClassVar[int] = 0
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-    def to_json(self) -> str:
-        return json.dumps(asdict(self))
+    @classmethod
+    def _next_id(cls) -> int:
+        val = cls._cnt
+        cls._cnt += 1
+        return val
+

@@ -1,7 +1,8 @@
-from typing import Union, Dict, List, Optional
+from typing import Union, Dict, List
 from pathlib import Path
 import asyncio
 import yaml
+
 
 from .credit_ledger import CreditLedger
 from .request import ModelRequest
@@ -13,6 +14,7 @@ from .policy_manager import PolicyManager
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 300      # Default timeout for routed requests (s)
+
 
 
 class LLMNode:
@@ -86,7 +88,6 @@ class LLMNode:
     async def join_network(self, join_network_url: str):
         """Join the network at the specified URL."""
         await self.communicator._join_network(join_network_url)
-        print(f"[{self.node_id}  ] Joined network at {join_network_url}.")
 
 
     async def submit_request(self, prompt: str):
