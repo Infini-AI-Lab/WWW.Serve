@@ -146,7 +146,7 @@ class ZmqCommunicator:
         return CommRequest.model_validate(response)
 
 
-    async def _check_node(self, node_id):
+    async def _check_node(self, node_id) -> str | None:
         try:
             response = await self.prepare_and_send_request(
                 payload=NodeRequest(
@@ -162,30 +162,26 @@ class ZmqCommunicator:
         return None
 
 
-    async def select_node_for_route(self):
-        """Select a target node for routing the request."""
+    async def select_node_from_candidates(self, candidates: List[str]) -> str | None:
+        """Probe the candidate nodes and return the first one that accepts."""
+        tasks = [self._check_node(node_id) for node_id in candidates if node_id != self.node.node_id]
+        results = await asyncio.gather(*tasks)
+
+        for node_id in results:
+            if node_id:
+                return node_id
+        return None
+
+    # TODO: Compatible with non-credit ledger nodes
+    async def select_node_from_peers(self):
+        """Probe all peers and return the first one that accepts."""
         tasks = [self._check_node(node_id) for node_id in self.peers.keys()]
         results = await asyncio.gather(*tasks)
 
-        for result in results:
-            if result:
-                return result
+        for node_id in results:
+            if node_id:
+                return node_id
         return None
-
-
-    # async def _safe_send_block(self, peer: PeerInfo, block):
-    #     try:
-    #         response = await self.prepare_and_send_request(
-    #             payload=NodeRequest(
-    #                 type="broadcast",
-    #                 known_blocks=[block]
-    #             ),
-    #             type="NodeRequest",
-    #             target_url=peer.address.to_url()
-    #         )
-
-    #     except Exception as e:
-    #         print(f"[{self.node.node_id}  ] Failed to send block {block.block_id} to {peer.address.to_url()}: {e}")
 
 
     async def broadcast_block(self, block):

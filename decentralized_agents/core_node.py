@@ -14,7 +14,7 @@ from .policy_manager import PolicyManager
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 300      # Default timeout for routed requests (s)
-
+MAX_QUEUE_REQS = 10
 
 
 class LLMNode:
@@ -101,15 +101,15 @@ class LLMNode:
         request.add_route(self.communicator.address.to_url())
 
         future = asyncio.get_running_loop().create_future()
-        self.pending_futures[request.request_id] = future
+        self.pending_futures[request.model_request_id] = future
         await self.request_manager.enque_request(request, queue="user")
         return await future
-    
+
 
     def resolve_future(self, request: ModelRequest):
         """Resolve a future for a request."""
         assert request.type == "response", "Cannot resolve future for a non-response type."
-        request_id = request.request_id
+        request_id = request.model_request_id
         response = request.model_result
 
         future = self.pending_futures.pop(request_id, None)
@@ -131,7 +131,7 @@ class LLMNode:
             }
         })
         self.resolve_future(request)
-        print(f"[{self.node_id}  ] Request {request.request_id} timed out after {timeout} seconds.")
+        print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
 
     async def handle_received_model_request(self, request: ModelRequest):
@@ -150,7 +150,7 @@ class LLMNode:
         assert request.type == "response", "Cannot handle inference response for a non-response type."
 
         if request.source_node_addr == self.communicator.address:
-            request_id = request.request_id
+            request_id = request.model_request_id
             timer = self.routing_timers.pop(request_id, None)
             if timer:
                 timer.cancel()
@@ -169,29 +169,61 @@ class LLMNode:
 
             request.route_path.pop()
             last_hop = request.route_path[-1]
-            print(f"[{self.node_id}  ] Forwarding response for request {request.request_id} to last hop {last_hop}.")
+            print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
             _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_url=last_hop)
 
 
-    # def credit_based_routing(request):
-    #     candidates = ledger.get_available_nodes()
+    def _select_local_idle_model(self):
+        """Select a local model with no queue requests."""
+        for model_path in self.models.clients:
+            if not self.models.model_dispatch_available(model_path):
+                continue
 
-    #     stakes = {
-    #         node_id: ledger.get_effective_stake(node_id, request)
-    #         for node_id in candidates
-    #     }
+            server_stats = self.models.get_server_stats(model_path)
+            num_queue_reqs = server_stats["num_queue_reqs"]
+            if num_queue_reqs == 0:
+                return model_path
+        return None
 
-    #     selected_node_id = weighted_random_selection(stakes)
 
-    #     ledger.stake_for_request(
-    #         request_id=request.id,
-    #         staker_id=selected_node_id,
-    #         amount=PREDEFINED_STAKE
-    #     )
+    def _select_local_model_for_queue(self):
+        """Select a local model for queuing the request."""
+        for model_path in self.models.clients:
+            if not self.models.model_dispatch_available(model_path):
+                continue
 
-    #     communication.send_request(selected_node_id, request)
+            server_stats = self.models.get_server_stats(model_path)
+            num_queue_reqs = server_stats["num_queue_reqs"]
+            if num_queue_reqs < MAX_QUEUE_REQS:
+                return model_path
+        return None
 
-    #     return selected_node_id, "remote_model"
+
+    async def _dispatch(self, request: ModelRequest, source: str):
+        """Dispatch a request to the appropriate node."""
+        # TODO: Compatible with non-credit ledger nodes
+        if not self.credit_ledger:
+            return await self.policy.dispatch_policy.dispatch(self, request, source)
+
+        # 1. Local model selection
+        selected_model = self._select_local_idle_model()
+        if selected_model:
+            return self.node_id, selected_model
+
+        # 2. Credit-based routing
+        target_node_list = await self.credit_ledger.select_node_by_pos(seed=request.user_input)
+        if target_node_list:
+            target_node_id = self.communicator.select_node_from_candidates(target_node_list)
+            if target_node_id:
+                return target_node_id, None
+
+        # 3. Fallback to local model selection for queuing
+        selected_model = self._select_local_model_for_queue()
+        if selected_model:
+            return self.node_id, selected_model
+
+        # 4. No model available in the local node or network
+        return None, None
 
 
 
@@ -213,10 +245,8 @@ class LLMNode:
         while True:
             try:
                 request, source = await self.request_manager.fetch_one_request()
-                #######################################
-                # TODO: Handle with CreditLedger!!!!! #
-                #######################################
-                selected_node_id, selected_model = await self.policy.dispatch_policy.dispatch(self, request, source)
+
+                selected_node_id, selected_model = await self._dispatch(request, source)
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
@@ -224,16 +254,16 @@ class LLMNode:
                     continue
 
                 if selected_node_id == self.node_id:
-                    print(f"[{self.node_id}  ] Dispatching request {request.request_id} using {self.node_id}: {selected_model}")
+                    print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
                     asyncio.create_task(self.models.inference_request(selected_model, request))
 
                 else:
-                    print(f"[{self.node_id}  ] Sending request {request.request_id} from {self.node_id} to {selected_node_id}")
+                    print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_id=selected_node_id)
-                    self.routing_timers[request.request_id] = asyncio.create_task(
+                    self.routing_timers[request.model_request_id] = asyncio.create_task(
                         self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
                     )
-            
+
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
                 await asyncio.sleep(1)

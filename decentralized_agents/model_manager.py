@@ -83,7 +83,7 @@ class ModelManager:
     
 
     def model_dispatch_available(self, model_path: str) -> bool:
-        """Check if the model is available for dispatch."""
+        """Check if the model is available for dispatch based on requests_per_window."""
         assert model_path in self.clients, f"Model {model_path} is not registered."
 
         req_cnt = self.node.request_manager.get_windowed_request_count(model_path)
@@ -95,7 +95,7 @@ class ModelManager:
 
     async def inference_request(self, model_path: str, request: ModelRequest):
         """Inferencing user input with the specified model."""
-        self.node.request_manager.record_request_start(model_path, request.request_id)
+        self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
 
         try:
@@ -112,8 +112,8 @@ class ModelManager:
             response = self._format_response(meta_response)
 
             request.set_response(response)
-            self.node.request_manager.record_request_complete(model_path, request.request_id, response["meta_data"]["usage"]["total_tokens"])
-            print(f"[{self.node.node_id}  ] Request {request.request_id} finished.")
+            self.node.request_manager.record_request_complete(model_path, request.model_request_id, response["meta_data"]["usage"]["total_tokens"])
+            print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
         
         except Exception as e:
             response = {
@@ -124,7 +124,7 @@ class ModelManager:
                 }
             }
             request.set_response(response)
-            print(f"[{self.node.node_id}  ] Error during inference for request {request.request_id}: {e}")
+            print(f"[{self.node.node_id}  ] Error during inference for request {request.model_request_id}: {e}")
 
         await self.node.handle_response_request(request)
 
@@ -145,8 +145,8 @@ class ModelManager:
 
                 self.server_stats[model_path]["max_requests_per_window"] = self._calculate_max_requests_per_window(model_path)
 
-                print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
-                print(f"          {self.server_stats[model_path]}")
+                # print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
+                # print(f"          {self.server_stats[model_path]}")
             
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Failed to update metrics for {model_path}: {e}")

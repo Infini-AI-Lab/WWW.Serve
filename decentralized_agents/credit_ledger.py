@@ -18,7 +18,6 @@ class CreditLedger:
         self.node = node
 
         self.public_key = self.node.node_id + "_public_key" # TODO: Replace with actual public key retrieval logic
-        self.account: CreditAccount = None
 
         self.accounts: Dict[str, CreditAccount] = {}
         self.accounts_lock = asyncio.Lock()
@@ -105,38 +104,73 @@ class CreditLedger:
             return [block.__dict__ for block in self.blocks]
 
 
-    # TODO: VRF?
-    def select_node_by_pos(self, seed: str) -> Optional[str]:
+    # TODO: VRF
+    def select_node_by_pos(self, seed: str, k = 5) -> List[str]:
+        """Select top-k nodes based on their stakes using a pseudo-random selection."""
         if not self.stakes:
-            return None
+            return []
 
         node_ids = list(self.stakes.keys())
         weights = [self.stakes[nid] for nid in node_ids]
         total = sum(weights)
 
         if total == 0:
-            return None
+            return []
 
         seed_int = int(hashlib.sha256(seed.encode()).hexdigest(), 16)
         rng = random.Random(seed_int)
 
-        return rng.choices(node_ids, weights=weights, k=1)[0]
+        return rng.choices(node_ids, weights=weights, k=k)
+
+
+    async def stake(self, amount: float):
+        """Stake a certain amount of credits."""        
+        stake_op = CreditOperation(
+            op_type="stake",
+            from_id=self.node.node_id,
+            to_id=None,
+            amount=amount,
+            metadata={},
+        )
+        await self._submit_operation(stake_op)
+
+
+    async def unstake(self, amount: float):
+        """Unstake a certain amount of credits."""
+        unstake_op = CreditOperation(
+            op_type="unstake",
+            from_id=self.node.node_id,
+            to_id=None,
+            amount=amount,
+            metadata={},
+        )
+        await self._submit_operation(unstake_op)
+    
+
+    async def reward(self, to_id: str, amount: float):
+        """Reward a node with a certain amount of credits."""
+        reward_op = CreditOperation(
+            op_type="reward",
+            from_id=self.node.node_id,
+            to_id=to_id,
+            amount=amount,
+            metadata={},
+        )
+        await self._submit_operation(reward_op)
 
 
     async def _broadcast_block(self, block: CreditBlock):
         """Broadcast a new block to the network."""
+        print(f"[{self.node.node_id}  ] Broadcasting block {block.block_id} to peers.")
         await self.node.communicator.broadcast_block(block)
-        print(f"[{self.node.node_id}  ] Broadcasted block {block.block_id} to peers.")
 
 
     async def _submit_operation(self, op: CreditOperation):
         """Submit a new credit operation to the pending_ops."""
-        if self._verify_operation(op):
-            async with self.pending_ops_lock:
-                self.pending_ops.append(op)
-            self._new_op_event.set()
-        else:
-            print(f"[{self.node.node_id}  ] Invalid operation: {op.op_type}")
+        # TODO: Do we need to verify the operation before submitting? Or verify only before creating a block?
+        async with self.pending_ops_lock:
+            self.pending_ops.append(op)
+        self._new_op_event.set()
 
 
     async def _apply_verified_block(self, block: CreditBlock):
@@ -147,31 +181,47 @@ class CreditLedger:
             self.chain_head = block.block_id
 
         for op in block.operations:
-            await self._apply_operation(op)
+            await self._apply_verified_operation(op)
 
         print(f"[{self.node.node_id}  ] Block {block.block_id} applied successfully. Current chain: {[block.block_id for block in self.blocks]}")
 
 
-    async def _apply_operation(self, op: CreditOperation):
-        """Apply a single credit operation to accounts."""
+    async def _apply_verified_operation(self, op: CreditOperation):
+        """Apply a single verified credit operation to accounts."""
+        # TODO: Will a verified operation always be valid? Or should we verify again here?
+
         async with self.accounts_lock:
             op_type = op.op_type
             if op_type == "create":
-                if op.from_id not in self.accounts:
-                    self.accounts[op.from_id] = CreditAccount(node_id=op.from_id, pubkey=op.metadata.get("public_key", None))
-                    print(f"[{self.node.node_id}  ] Created account for {op.from_id}.")
-                else:
-                    print(f"[{self.node.node_id}  ] Account {op.from_id} already exists.")
+                self.accounts[op.from_id] = CreditAccount(node_id=op.from_id, pubkey=op.metadata.get("public_key", None))
+                print(f"[{self.node.node_id}  ] Created account for {op.from_id}.")
 
-            elif op_type == "reward":
-                self.accounts[op.to_id].credit += op.amount
-                print(f"[{self.node.node_id}  ] Rewarded {op.to_id} with {op.amount} credits.")
+                async with self.stakes_lock:
+                    self.stakes[op.from_id] = 0.0
 
             elif op_type == "stake":
                 acct = self.accounts[op.from_id]
                 acct.credit -= op.amount
                 acct.staked += op.amount
-                print(f"[{self.node.node_id}  ] Staked {op.amount} credits for {op.from_id}. Total staked: {acct.staked}")
+
+                async with self.stakes_lock:
+                    self.stakes[op.from_id] += op.amount
+
+                print(f"[{self.node.node_id}  ] Staked {op.amount} credits, total staked: {acct.staked}")
+            
+            elif op_type == "unstake":
+                acct = self.accounts[op.from_id]
+                acct.staked -= op.amount
+                acct.credit += op.amount
+
+                async with self.stakes_lock:
+                    self.stakes[op.from_id] -= op.amount
+
+                print(f"[{self.node.node_id}  ] Unstaked {op.amount} credits, total staked: {acct.staked}")
+
+            elif op_type == "reward":
+                self.accounts[op.to_id].credit += op.amount
+                print(f"[{self.node.node_id}  ] Rewarded {op.amount} credits to {op.to_id}, total credit: {self.accounts[op.to_id].credit}")
 
 
 
@@ -200,7 +250,40 @@ class CreditLedger:
         if op_type == "create":
             if op.from_id in self.accounts:
                 return False
-            return True  # Creation is valid if the account does not exist
+            return True
+
+        elif op_type == "stake":
+            if op.amount is None or op.amount <= 0:
+                print(f"[{self.node.node_id}  ] Invalid stake amount: {op.amount}")
+                return False
+            if op.from_id not in self.accounts:
+                print(f"[{self.node.node_id}  ] Cannot stake, account {op.from_id} does not exist.")
+                return False
+            if self.accounts[op.from_id].credit < op.amount:
+                print(f"[{self.node.node_id}  ] Cannot stake, insufficient credits for {op.from_id}.")
+                return False
+            return True
+
+        elif op_type == "unstake":
+            if op.amount is None or op.amount <= 0:
+                print(f"[{self.node.node_id}  ] Invalid unstake amount: {op.amount}")
+                return False
+            if op.from_id not in self.accounts:
+                print(f"[{self.node.node_id}  ] Cannot unstake, account {op.from_id} does not exist.")
+                return False
+            if self.accounts[op.from_id].staked < op.amount:
+                print(f"[{self.node.node_id}  ] Cannot unstake, insufficient staked credits for {op.from_id}.")
+                return False
+            return True
+    
+        elif op_type == "reward":
+            if op.to_id not in self.accounts:
+                print(f"[{self.node.node_id}  ] Cannot reward, account {op.to_id} does not exist.")
+                return False
+            if op.amount is None or op.amount <= 0:
+                print(f"[{self.node.node_id}  ] Invalid reward amount: {op.amount}")
+                return False
+            return True
 
         else:
             print(f"[{self.node.node_id}  ] Unknown operation type: {op_type}")
@@ -226,8 +309,13 @@ class CreditLedger:
 
     # TODO: Implement the actual hashing and signing logic
     def _compute_block_id(self, parent_id: str, ops: Optional[List[CreditOperation]], ts: float) -> str:
-        id = self.node.node_id + "_" + "block_" + str(self._cnt)
-        self._cnt += 1
+        """Compute a unique block ID based on parent ID, operations, and timestamp."""
+        if ops is None or len(ops) == 0:
+            id = self.node.node_id + "_" + "block_" + str(self._cnt)
+            self._cnt += 1
+        else:
+            id = self.node.node_id + "_" + "block_" + str(self._cnt) + "_" + ops[0].op_type
+            self._cnt += 1
         return id
 
 
@@ -236,6 +324,7 @@ class CreditLedger:
 
 
     async def receive_block(self, block: CreditBlock):
+        print(f"[{self.node.node_id}  ] Receiving block {block.block_id}")
         if block.block_id in self.block_index:
             print(f"[{self.node.node_id}  ] Block {block.block_id} already exists.")
             return

@@ -13,50 +13,23 @@ from .base import (
 
 class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
     """Default node policy for vLLM."""
-    MAX_QUEUE_REQS = 10
-
-    def _select_model_for_dispatch(self, node):
-        """Select a model for dispatching the request based on the current load."""
-        for model_path in node.models.clients:
-            if not node.models.model_dispatch_available(model_path):
-                continue
-            
-            server_stats = node.models.get_server_stats(model_path)
-            num_queue_reqs = server_stats["num_queue_reqs"]
-            if num_queue_reqs == 0:
-                return model_path
-        return None
-
-
-    def _select_model_for_queue(self, node):
-        """Select a model for queuing the request."""
-        for model_path in node.models.clients:
-            if not node.models.model_dispatch_available(model_path):
-                continue
-
-            server_stats = node.models.get_server_stats(model_path)
-            num_queue_reqs = server_stats["num_queue_reqs"]
-            if num_queue_reqs < self.MAX_QUEUE_REQS:
-                return model_path
-        return None
-
 
     async def dispatch(self, node, request, source) -> Tuple[Optional[str], Optional[str]]:
         """Dispatch a single request to the appropriate model."""
-        selected_model = self._select_model_for_dispatch(node)
+        selected_model = node._select_local_idle_model(node)
 
         if selected_model:
             return node.node_id, selected_model
-        else:
-            target_node_id = await node.communicator.select_node_for_route()
-            if target_node_id:
-                return target_node_id, None
-            else:
-                selected_model = self._select_model_for_queue(node)
-                if selected_model:
-                    return node.node_id, selected_model
-                else:
-                    return None, None
+
+        target_node_id = await node.communicator.select_node_from_peers()
+        if target_node_id:
+            return target_node_id, None
+
+        selected_model = node._select_local_model_for_queue(node)
+        if selected_model:
+            return node.node_id, selected_model
+
+        return None, None
 
 
 
