@@ -51,7 +51,7 @@ class ZmqCommunicator:
                 existing = self.peers.get(addr.node_id, None)
                 if existing is None:
                     self.peers[addr.node_id] = PeerInfo(node_id=addr.node_id, address=addr)
-                    print(f"[{self.node.node_id}  ] Added new peer: {addr.node_id} at {addr.to_url()}")
+                    # print(f"[{self.node.node_id}  ] Added new peer: {addr.node_id} at {addr.to_url()}")
                 else:
                     # Update address if changed.
                     if existing.address != addr:
@@ -64,7 +64,7 @@ class ZmqCommunicator:
         """Join the network by synchronizing with a peer."""
         response = await self.prepare_and_send_request(
             payload=NodeRequest(
-                type="join",
+                type="sync",
                 known_peers=[self.address],
             ),
             type="NodeRequest",
@@ -118,18 +118,18 @@ class ZmqCommunicator:
 
         if target_id:
             async with self.zmq_lock:
-                target_address = self.peers.get(target_id, None)
-            if target_address is None:
+                target_peerinfo = self.peers.get(target_id, None)
+            if target_peerinfo is None:
                 print(f"[{self.node.node_id}  ] Target node {target_id} not found in peers.")
                 return None
-            target_url = target_address.address.to_url()
+            target_address = target_peerinfo.address
         else:
             target_address = Address.from_url(target_url)
 
 
         if type == "ModelRequest":
             assert isinstance(payload, ModelRequest), "Payload must be a ModelRequest for 'model' type."
-            payload.add_route(target_url)
+            payload.add_route(target_address.to_url())
 
         comm_request = CommRequest(
             sender=self.address,
@@ -155,7 +155,7 @@ class ZmqCommunicator:
                 type="NodeRequest",
                 target_id=node_id
             )
-            if response and response.payload.can_accept:
+            if response and response.payload.accept_request:
                 return node_id
         except Exception as e:
             print(f"[{self.node.node_id}] Failed to probe node {node_id}: {e}")
@@ -186,6 +186,9 @@ class ZmqCommunicator:
 
     async def broadcast_block(self, block):
         """Broadcast a new block to all peers."""
+        if not self.peers:
+            return True
+
         tasks = []
         for peer in self.peers.values():
             if peer.address == self.address:
@@ -203,20 +206,33 @@ class ZmqCommunicator:
             )
             tasks.append(task)
 
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        accepted_count = 0
 
+        for result in results:
+            if isinstance(result, CommRequest) and getattr(result.payload, "accept_block", False):
+                accepted_count += 1
+
+        return accepted_count > len(self.peers)//2
 
 
     async def gossip_probe(self):
         """Gossip with peers to check their availability and synchronize."""
         peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers)))
 
+        known_peers = [peer_info.address for peer_info in self.peers.values()] + [self.address]
+        if self.node.credit_ledger:
+            known_blocks = await self.node.credit_ledger.get_blocks()
+        else:
+            known_blocks = None
+
         for node_id, peer_info in peer_samples:
             try:
                 response = await self.prepare_and_send_request(
                     payload=NodeRequest(
                         type="sync",
-                        known_peers=[peer.address for peer in self.peers.values()] + [self.address]
+                        known_peers=known_peers,
+                        known_blocks=known_blocks
                     ),
                     type="NodeRequest",
                     target_url=peer_info.address.to_url()
@@ -224,6 +240,9 @@ class ZmqCommunicator:
                 if response:
                     peers = response.payload.known_peers
                     await self._sync_peers(peers)
+
+                    blocks = response.payload.known_blocks
+                    await self.node.credit_ledger.sync_blocks(blocks)
                 else:
                     # No response from the node
                     print(f"[{self.node.node_id}  ] No response from node {node_id}")
@@ -250,64 +269,59 @@ class ZmqCommunicator:
         if comm_type == "NodeRequest":
             req_type = comm_request.payload.type
 
-            if req_type == "join":
+            if req_type == "sync":
                 peers = comm_request.payload.known_peers
                 await self._sync_peers(peers)
 
-                peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
-                comm_request = CommRequest(
-                    sender=self.address,
-                    receiver=sender,
-                    type="NodeRequest",
-                    payload=NodeRequest(
-                        type="join",
-                        known_peers=peers_list,
-                        known_blocks=await self.node.credit_ledger.get_blocks(),
-                    )
-                )
-                await self.receiver.send_json(comm_request.model_dump())
+                blocks = comm_request.payload.known_blocks
+                await self.node.credit_ledger.sync_blocks(blocks)
 
-            elif req_type == "sync":
-                # Always update peers on sync
-                peers = comm_request.payload.known_peers
-                await self._sync_peers(peers)
+                known_peers = [peer_info.address for peer_info in self.peers.values()] + [self.address]
+                known_blocks = await self.node.credit_ledger.get_blocks()
 
-                peers_list = [peer_info.address for peer_info in self.peers.values()] + [self.address]
                 comm_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
                     type="NodeRequest",
                     payload=NodeRequest(
                         type="sync",
-                        known_peers=peers_list,
+                        known_peers=known_peers,
+                        known_blocks=known_blocks,
                     )
                 )
                 await self.receiver.send_json(comm_request.model_dump())
 
             elif req_type == "probe":
-                can_accept = await self.node.policy.routing_policy.can_accept_route(self.node)
+                accept_request = await self.node.policy.routing_policy.can_accept_route(self.node)
                 comm_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
                     type="NodeRequest",
                     payload=NodeRequest(
                         type="probe",
-                        can_accept=can_accept
+                        accept_request=accept_request
                     )
                 )
                 await self.receiver.send_json(comm_request.model_dump())
 
             elif req_type == "broadcast":
-                empty_request = CommRequest(
+                new_block = comm_request.payload.known_blocks[0]
+                # await self.node.credit_ledger.receive_block(new_block)
+                accept_block = await self.node.credit_ledger.verify_block(new_block)
+
+                reply_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
-                    type="EmptyRequest",
-                    payload=EmptyRequest()
+                    type="NodeRequest",
+                    payload=NodeRequest(
+                        type="broadcast",
+                        accept_block=accept_block
+                    )
                 )
-                await self.receiver.send_json(empty_request.model_dump())
+                await self.receiver.send_json(reply_request.model_dump())
 
-                new_block = comm_request.payload.known_blocks[0]
-                await self.node.credit_ledger.receive_block(new_block)
+                if accept_block:
+                    await self.node.credit_ledger.apply_verified_block(new_block)
 
             else:
                 empty_request = CommRequest(

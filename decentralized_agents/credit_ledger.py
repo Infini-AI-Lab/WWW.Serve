@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 
 
+STAKE_CHECK_INTERVAL = 10  # seconds, how often to check for stake updates
+
+
+
 class CreditLedger:
     def __init__(self, node: "LLMNode"):
         self.node = node
@@ -47,9 +51,8 @@ class CreditLedger:
         self = cls(node)
 
         time_stamp = time.time()
-        block_id = self._compute_block_id("GENESIS", None, time_stamp)
         genesis_block = CreditBlock(
-            block_id=block_id,
+            block_id=self._compute_block_id("GENESIS", None, time_stamp),
             parent_id=None,
             proposer=self.node.node_id,
             signature=self._sign_block("GENESIS", None, time_stamp),
@@ -59,10 +62,12 @@ class CreditLedger:
 
         async with self.blocks_lock:
             self.blocks.append(genesis_block)
-            self.block_index[block_id] = genesis_block
-            self.chain_head = block_id
+            self.block_index[genesis_block.block_id] = genesis_block
+            self.chain_head = genesis_block.block_id
 
         await self.create_account()
+
+        asyncio.create_task(self._update_stake_loop())
 
         return self
 
@@ -75,13 +80,15 @@ class CreditLedger:
         for block_data in block_list:
             block = CreditBlock.model_validate(block_data)
 
-            if not self._verify_block(block):
+            if not await self.verify_block(block):
                 print(f"[{self.node.node_id}  ] Invalid block {block.block_id} during sync.")
                 return None
 
-            await self._apply_verified_block(block)
+            await self.apply_verified_block(block)
 
         await self.create_account()
+
+        asyncio.create_task(self._update_stake_loop())
 
         return self
 
@@ -146,7 +153,7 @@ class CreditLedger:
         )
         await self._submit_operation(unstake_op)
     
-
+    # TODO: Quality-based reward
     async def reward(self, to_id: str, amount: float):
         """Reward a node with a certain amount of credits."""
         reward_op = CreditOperation(
@@ -159,10 +166,64 @@ class CreditLedger:
         await self._submit_operation(reward_op)
 
 
-    async def _broadcast_block(self, block: CreditBlock):
-        """Broadcast a new block to the network."""
-        print(f"[{self.node.node_id}  ] Broadcasting block {block.block_id} to peers.")
-        await self.node.communicator.broadcast_block(block)
+    async def handle_potential_fork(self):
+        """Handle potential forks by checking the chain head and blocks."""
+        raise NotImplementedError("Fork handling is not implemented yet.")
+    
+
+    async def sync_blocks(self, blocks: List[Dict]):
+        """Synchronize blocks from another node."""
+        pass
+        # peer_chain = [CreditBlock.model_validate(block) for block in blocks]
+
+        # if not await self._verify_peer_chain(peer_chain):
+        #     print(f"[{self.node.node_id}  ] Peer chain verification failed.")
+        #     return
+
+        # fork_index = None
+        # async with self.blocks_lock:
+        #     local_length = len(self.blocks)
+        #     for i, peer_block in enumerate(peer_chain):
+        #         if i >= local_length:
+        #             fork_index = i
+        #             break
+
+        #         my_block_id = self.blocks[i].block_id
+        #         if peer_block.block_id != my_block_id:
+        #             fork_index = i
+        #             break
+        
+        # if fork_index is None:
+        #     print(f"[{self.node.node_id}  ] Peer chain is identical or shorter.")
+        #     return
+
+        # # TODO: Handle the fork by replacing the blocks from fork_index onwards
+        # if len(peer_chain) > local_length:
+            
+        #     simu_blocks = self.blocks[:fork_index]
+        #     simu_block_index = {}
+        #     simu_chain_head = None
+        #     simu_accounts = {}
+        #     simu_stakes = {}
+
+        #     for block in simu_blocks:
+        #         pass
+
+        #     print(f"[{self.node.node_id}  ] Chain switched to peer chain.")
+        # else:
+        #     print(f"[{self.node.node_id}  ] My chain is longer. No action taken.")
+
+
+    def _rollback_to_height(self, height: int):
+        """Rollback the ledger to a specific height."""
+        removed_blocks = self.blocks[height+1:]
+        for blk in removed_blocks:
+            del self.block_index[blk.block_id]
+
+        # TODO: Undo operations in removed blocks
+
+        self.blocks = self.blocks[:height+1]
+        self.chain_head = self.blocks[-1] if self.blocks else None
 
 
     async def _submit_operation(self, op: CreditOperation):
@@ -173,7 +234,7 @@ class CreditLedger:
         self._new_op_event.set()
 
 
-    async def _apply_verified_block(self, block: CreditBlock):
+    async def apply_verified_block(self, block: CreditBlock):
         """Apply a new verified block to the chain."""
         async with self.blocks_lock:
             self.blocks.append(block)
@@ -182,8 +243,6 @@ class CreditLedger:
 
         for op in block.operations:
             await self._apply_verified_operation(op)
-
-        print(f"[{self.node.node_id}  ] Block {block.block_id} applied successfully. Current chain: {[block.block_id for block in self.blocks]}")
 
 
     async def _apply_verified_operation(self, op: CreditOperation):
@@ -207,8 +266,8 @@ class CreditLedger:
                 async with self.stakes_lock:
                     self.stakes[op.from_id] += op.amount
 
-                print(f"[{self.node.node_id}  ] Staked {op.amount} credits, total staked: {acct.staked}")
-            
+                print(f"[{self.node.node_id}  ] Node {op.from_id} staked {op.amount} credits.")
+
             elif op_type == "unstake":
                 acct = self.accounts[op.from_id]
                 acct.staked -= op.amount
@@ -217,23 +276,45 @@ class CreditLedger:
                 async with self.stakes_lock:
                     self.stakes[op.from_id] -= op.amount
 
-                print(f"[{self.node.node_id}  ] Unstaked {op.amount} credits, total staked: {acct.staked}")
+                print(f"[{self.node.node_id}  ] Node {op.from_id} unstaked {op.amount} credits.")
 
             elif op_type == "reward":
+                self.accounts[op.from_id].credit -= op.amount
                 self.accounts[op.to_id].credit += op.amount
-                print(f"[{self.node.node_id}  ] Rewarded {op.amount} credits to {op.to_id}, total credit: {self.accounts[op.to_id].credit}")
+                print(f"[{self.node.node_id}  ] Node {op.from_id} rewarded {op.amount} credits to {op.to_id}.")
 
 
 
     def _verify_block_signature(self, block: CreditBlock) -> bool:
         """Verify a signature for a given node and data."""
         return block.signature == "signature_" + block.proposer  # TODO: Implement actual signature verification logic
+    
+
+    async def _verify_peer_chain(self, peer_blocks: List[CreditBlock]) -> bool:
+        """Verify the integrity of a peer's chain."""
+        last_block = None
+        for block in peer_blocks:
+            if last_block and block.parent_id != last_block.block_id:
+                print(f"[{self.node.node_id}  ] Peer chain is invalid at block {block.block_id}.")
+                return False
+
+            if not self._verify_block_signature(block):
+                print(f"[{self.node.node_id}  ] Block {block.block_id} signature verification failed.")
+                return False
+
+            last_block = block
+        return True
 
 
-    def _verify_block(self, block: CreditBlock) -> bool:
+    async def verify_block(self, block: CreditBlock) -> bool:
         """Verify a block's integrity and operations."""
-        if block.parent_id and (block.parent_id not in self.block_index):
+        if block.block_id in self.block_index:
             return False
+
+        async with self.blocks_lock:
+            if block.parent_id and block.parent_id != self.chain_head:
+                return False
+
 
         if not self._verify_block_signature(block):
             return False
@@ -277,11 +358,14 @@ class CreditLedger:
             return True
     
         elif op_type == "reward":
-            if op.to_id not in self.accounts:
-                print(f"[{self.node.node_id}  ] Cannot reward, account {op.to_id} does not exist.")
+            if op.to_id not in self.accounts or op.from_id not in self.accounts:
+                print(f"[{self.node.node_id}  ] Cannot reward, account {op.to_id} or {op.from_id} does not exist.")
                 return False
             if op.amount is None or op.amount <= 0:
                 print(f"[{self.node.node_id}  ] Invalid reward amount: {op.amount}")
+                return False
+            if self.accounts[op.from_id].credit < op.amount:
+                print(f"[{self.node.node_id}  ] Cannot reward, insufficient credits for {op.from_id}.")
                 return False
             return True
 
@@ -290,9 +374,10 @@ class CreditLedger:
             return False
 
 
-    def _create_block(self, ops: List[CreditOperation]) -> CreditBlock:
+    async def _create_block(self, ops: List[CreditOperation]) -> CreditBlock:
         """Create a new credit block with the given operations."""
-        parent_id = self.chain_head
+        async with self.blocks_lock:
+            parent_id = self.chain_head
         timestamp = time.time()
 
         block = CreditBlock(
@@ -303,7 +388,7 @@ class CreditLedger:
             operations=ops,
             signature=self._sign_block(parent_id, ops, timestamp),
         )
-        print(f"[{self.node.node_id}  ] Created block {block.block_id} with {len(ops)} ops, parent {parent_id}")
+        # print(f"[{self.node.node_id}  ] Created block {block.block_id} with {len(ops)} ops, parent {parent_id}")
         return block
 
 
@@ -323,24 +408,6 @@ class CreditLedger:
         return "signature_" + self.node.node_id
 
 
-    async def receive_block(self, block: CreditBlock):
-        print(f"[{self.node.node_id}  ] Receiving block {block.block_id}")
-        if block.block_id in self.block_index:
-            print(f"[{self.node.node_id}  ] Block {block.block_id} already exists.")
-            return
-
-        if not self._verify_block(block):
-            print(f"[{self.node.node_id}  ] Block {block.block_id} failed verification.")
-            return
-
-        if block.parent_id != self.chain_head:
-            # TODO: Handle potential fork
-            print(f"[{self.node.node_id}  ] Block {block.block_id} has a different parent than the current chain head {self.chain_head}.")
-            return
-    
-        await self._apply_verified_block(block)
-
-
     async def _block_producer_loop(self):
         """Triggered block production: respond to incoming ops or timeout."""
         ### If many ops come within a short time, some may be delayed (which might be bearable).
@@ -358,22 +425,47 @@ class CreditLedger:
 
                 async with self.pending_ops_lock:
                     self._new_op_event.clear()
-
                     if not self.pending_ops:
                         continue
 
                     ops_to_pack = self.pending_ops[:BATCH_SIZE]
-                    self.pending_ops = self.pending_ops[BATCH_SIZE:]
-    
-                block = self._create_block(ops_to_pack)
 
-                if not self._verify_block(block):
+                block = await self._create_block(ops_to_pack)
+                print(f"[{self.node.node_id}  ] Producing block: {block.block_id}, parent block: {block.parent_id}.")
+
+                if not await self.verify_block(block):
                     print(f"[{self.node.node_id}  ] Block {block.block_id} failed verification.")
                     continue
 
-                await self._apply_verified_block(block)
-                await self._broadcast_block(block)
+                confirmed = await self.node.communicator.broadcast_block(block)
+                if confirmed:
+                    print(f"[{self.node.node_id}  ] Block {block.block_id} accepted by the network.")
+                    async with self.pending_ops_lock:
+                        self.pending_ops = self.pending_ops[BATCH_SIZE:]
+
+                    await self.apply_verified_block(block)
+                else:
+                    print(f"[{self.node.node_id}  ] Block {block.block_id} not accepted by the network.")
 
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Error in block producer loop: {e}")
                 await asyncio.sleep(1)
+
+
+    async def default_stake_policy(self):
+        """Default stake policy: staked == credit."""
+        async with self.accounts_lock:
+            acct = self.accounts.get(self.node.node_id)
+            if acct and acct.credit > acct.staked:
+                await self.stake((acct.credit-acct.staked)/2)
+
+
+    async def _update_stake_loop(self):
+        """Periodically check and apply the stake policy."""
+        # TODO: Do we need to update stakes periodically and automatically?
+        while True:
+            await asyncio.sleep(STAKE_CHECK_INTERVAL)
+            try:
+                await self.default_stake_policy()
+            except Exception as e:
+                print(f"[{self.node.node_id}  ] Stake policy error: {e}")

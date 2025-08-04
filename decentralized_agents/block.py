@@ -7,7 +7,7 @@ import time
 class CreditAccount(BaseModel):
     node_id: str
     pubkey: Optional[str] = None
-    credit: float = 0.0
+    credit: float = 10.0 # TODO: Only for testing, should be 0.0
     staked: float = 0.0
 
     model_config = dict(arbitrary_types_allowed=True)

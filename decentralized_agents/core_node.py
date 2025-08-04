@@ -56,7 +56,8 @@ class LLMNode:
         if is_genesis:
             node.credit_ledger = await CreditLedger.init_genesis(node)
         else:
-            node.credit_ledger = None  # Only initialized when joining the network
+            # Only initialized when joining the network
+            node.credit_ledger = None
 
         return node
 
@@ -123,13 +124,16 @@ class LLMNode:
         """Start a timeout timer for a routed request."""
         await asyncio.sleep(timeout)
 
-        request.set_response({
-            "done_by": self.node_id,
-            "content": "Request timed out.",
-            "meta_data": {
-                "finish_reason": "timeout",
-            }
-        })
+        request.set_response(
+            {
+                "done_by": self.node_id,
+                "content": "Request timed out.",
+                "meta_data": {
+                    "finish_reason": "timeout",
+                }
+            },
+            executor_node_id=self.node_id
+        )
         self.resolve_future(request)
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
@@ -150,6 +154,10 @@ class LLMNode:
         assert request.type == "response", "Cannot handle inference response for a non-response type."
 
         if request.source_node_addr == self.communicator.address:
+            # Reward the executor node if it's not the current node
+            if request.executor_node_id != self.node_id:
+                await self.credit_ledger.reward(request.executor_node_id, amount=1)
+
             request_id = request.model_request_id
             timer = self.routing_timers.pop(request_id, None)
             if timer:
@@ -170,7 +178,7 @@ class LLMNode:
             request.route_path.pop()
             last_hop = request.route_path[-1]
             print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
-            _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_url=last_hop)
+            _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
 
     def _select_local_idle_model(self):
@@ -211,9 +219,9 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        target_node_list = await self.credit_ledger.select_node_by_pos(seed=request.user_input)
+        target_node_list = self.credit_ledger.select_node_by_pos(seed=request.user_input)
         if target_node_list:
-            target_node_id = self.communicator.select_node_from_candidates(target_node_list)
+            target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
             if target_node_id:
                 return target_node_id, None
 
@@ -243,7 +251,7 @@ class LLMNode:
     async def _dispatch_loop(self):
         """Main loop for dispatching requests."""
         while True:
-            try:
+            # try:
                 request, source = await self.request_manager.fetch_one_request()
 
                 selected_node_id, selected_model = await self._dispatch(request, source)
@@ -259,21 +267,21 @@ class LLMNode:
 
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
-                    _ = await self.communicator.prepare_and_send_request(payload=request, type="model", target_id=selected_node_id)
+                    _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
                     self.routing_timers[request.model_request_id] = asyncio.create_task(
                         self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
                     )
 
-            except Exception as e:
-                print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
-                await asyncio.sleep(1)
+            # except Exception as e:
+            #     print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
+            #     await asyncio.sleep(1)
 
 
     async def _listen_loop(self):
         """Main loop for listening to incoming requests."""
         while True:
-            try:
+            # try:
                 await self.communicator.listen()
-            except Exception as e:
-                print(f"[{self.node_id}  ] Error in listen loop: {e}")
-                await asyncio.sleep(1)
+            # except Exception as e:
+            #     print(f"[{self.node_id}  ] Error in listen loop: {e}")
+            #     await asyncio.sleep(1)

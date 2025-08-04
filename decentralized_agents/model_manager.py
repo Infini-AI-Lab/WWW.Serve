@@ -1,6 +1,7 @@
 from typing import Union, Dict, TYPE_CHECKING
 from openai import AsyncOpenAI
-
+import asyncio
+import random
 
 from .request import ModelRequest
 
@@ -98,35 +99,57 @@ class ModelManager:
         self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
 
-        try:
-            meta_response = await self.clients[model_path].chat.completions.create(
-                model = model_path,
-                messages = [{
-                    "role": "user",
-                    "content": request.user_input + " Please reason step by step, and put your final answer within \\boxed{}."
-                }],
-                temperature = gen_params.get("temperature", 0.6),
-                top_p = gen_params.get("top_p", 0.95),
-                max_completion_tokens = gen_params.get("max_tokens", 256),  # max_new_tokens
-            )
-            response = self._format_response(meta_response)
-
-            request.set_response(response)
-            self.node.request_manager.record_request_complete(model_path, request.model_request_id, response["meta_data"]["usage"]["total_tokens"])
-            print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
-        
-        except Exception as e:
-            response = {
-                "done_by": self.node.node_id,
-                "content": str(e),
-                "meta_data": {
-                    "finish_reason": "error",
+        ### DEBUG ###
+        time_sleep = random.uniform(5, 20)
+        await asyncio.sleep(time_sleep)
+        response = {
+            "done_by": self.node.node_id,
+            "content": "Simulated response.",
+            "meta_data": {
+                "finish_reason": "Simulated",
+                "model": model_path,
+                "object": "object_name",
+                "usage": {
+                    "prompt_tokens": -1,
+                    "completion_tokens": -1,
+                    "total_tokens": -1
                 }
             }
-            request.set_response(response)
-            print(f"[{self.node.node_id}  ] Error during inference for request {request.model_request_id}: {e}")
-
+        }
+        request.set_response(response, executor_node_id=self.node.node_id)
         await self.node.handle_response_request(request)
+        #############
+
+
+        # try:
+        #     meta_response = await self.clients[model_path].chat.completions.create(
+        #         model = model_path,
+        #         messages = [{
+        #             "role": "user",
+        #             "content": request.user_input + " Please reason step by step, and put your final answer within \\boxed{}."
+        #         }],
+        #         temperature = gen_params.get("temperature", 0.6),
+        #         top_p = gen_params.get("top_p", 0.95),
+        #         max_completion_tokens = gen_params.get("max_tokens", 256),  # max_new_tokens
+        #     )
+        #     response = self._format_response(meta_response)
+
+        #     request.set_response(response, executor_node_id=self.node.node_id)
+        #     # self.node.request_manager.record_request_complete(model_path, request.model_request_id, response["meta_data"]["usage"]["total_tokens"])
+        #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
+        
+        # except Exception as e:
+        #     response = {
+        #         "done_by": self.node.node_id,
+        #         "content": str(e),
+        #         "meta_data": {
+        #             "finish_reason": "error",
+        #         }
+        #     }
+        #     request.set_response(response, executor_node_id=self.node.node_id)
+        #     print(f"[{self.node.node_id}  ] Error during inference for request {request.model_request_id}: {e}")
+
+        # await self.node.handle_response_request(request)
 
 
     def get_server_stats(self, model_path: str) -> Dict:

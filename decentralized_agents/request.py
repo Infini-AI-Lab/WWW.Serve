@@ -36,12 +36,14 @@ class PeerInfo(BaseModel):
 
 
 class NodeRequest(BaseModel):
-    type: Literal["join", "sync", "probe", "broadcast"]
+    type: Literal["sync", "probe", "broadcast"]
     node_request_id: int = Field(default_factory=lambda: NodeRequest._next_id())
 
     known_peers: Optional[List[Address]] = None
     known_blocks: Optional[List[CreditBlock]] = None
-    can_accept: Optional[bool] = None
+    accept_request: Optional[bool] = None
+
+    accept_block: Optional[bool] = None
 
     timestamp: float = Field(default_factory=time.time)
 
@@ -75,7 +77,9 @@ class ModelRequest(BaseModel):
     route_path: List[str] = Field(default_factory=list)  # URLs of nodes in the route
 
     user_input: Optional[str] = None
+
     model_result: Optional[dict] = None
+    executor_node_id: Optional[str] = None
 
     timestamp: float = Field(default_factory=time.time)
 
@@ -96,9 +100,10 @@ class ModelRequest(BaseModel):
         self.route_path.append(url)
 
 
-    def set_response(self, response: dict):
+    def set_response(self, response: dict, executor_node_id: str):
         assert self.type == "request", "Cannot set response for a non-request."
         self.model_result = response
+        self.executor_node_id = executor_node_id
         self.type = "response"
 
 
