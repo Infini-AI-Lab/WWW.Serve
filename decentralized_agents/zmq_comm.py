@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Union, List, TYPE_CHECKING
 import time
 import random
+import json
 
 
 from .request import Address, PeerInfo, CommRequest, NodeRequest, ModelRequest, EmptyRequest
@@ -28,19 +29,19 @@ class ZmqCommunicator:
         self.context = zmq.asyncio.Context()
         self.zmq_lock = asyncio.Lock()
 
-        self.receiver = self.context.socket(zmq.REP)
+        self.receiver = self.context.socket(zmq.ROUTER)
         self.receiver.bind(self.address.to_url())
 
         self.peers: Dict[str, PeerInfo] = {}  # node_id -> PeerInfo
 
 
-    def _stop(self):
+    def stop(self):
         """Stop the communicator."""
         self.receiver.close(linger=0)
         self.context.term()
 
 
-    async def _sync_peers(self, peer_list: List):
+    async def _sync_peers(self, peer_list: List[Address]):
         """Synchronize the peer list with the provided peers."""
 
         async with self.zmq_lock:
@@ -77,8 +78,6 @@ class ZmqCommunicator:
 
             blocks = response.payload.known_blocks
             await self.node.init_ledger_sync(blocks)
-
-            print(f"[{self.node.node_id}  ] Joined network at {peer_url}.")
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_url}")
 
@@ -87,20 +86,25 @@ class ZmqCommunicator:
         """Send a communication request."""
         target_url = comm_request.receiver.to_url()
 
-        socket = self.context.socket(zmq.REQ)
+        socket = self.context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
+
+        identity = str(self.node.node_id).encode()
+        socket.setsockopt(zmq.IDENTITY, identity)
 
         try:
             socket.connect(target_url)
-            await socket.send_json(comm_request.model_dump())
+            await socket.send_multipart([b'', json.dumps(comm_request.model_dump()).encode()])
 
             poller = zmq.asyncio.Poller()
             poller.register(socket, zmq.POLLIN)
             socks = await poller.poll(timeout=COMM_RESPONSE_TIMEOUT)
 
             if socks and any(event == zmq.POLLIN and sock == socket for sock, event in socks):
-                response = await socket.recv_json()
-                return response
+                parts = await socket.recv_multipart()
+                if len(parts) == 2:
+                    _, raw_reply = parts
+                    return json.loads(raw_reply.decode())
             return None
 
         except Exception as e:
@@ -245,7 +249,6 @@ class ZmqCommunicator:
                     await self.node.credit_ledger.sync_blocks(blocks)
                 else:
                     # No response from the node
-                    print(f"[{self.node.node_id}  ] No response from node {node_id}")
                     self.peers[node_id].fail_count += 1
                     if self.peers[node_id].fail_count >= 3:
                         print(f"[{self.node.node_id}  ] Node {node_id} is offline, removing from peers")
@@ -260,26 +263,30 @@ class ZmqCommunicator:
     
 
     async def listen(self):
-        json_data = await self.receiver.recv_json()
-        comm_request = CommRequest.model_validate(json_data)
+        parts = await self.receiver.recv_multipart()
+        if len(parts) != 3:
+            print(f"[{self.node.node_id}  ] Invalid message received: {parts}")
+            return
+        identity, _, raw_msg = parts
+        recv_request = CommRequest.model_validate(json.loads(raw_msg.decode()))
 
-        comm_type = comm_request.type
-        sender = comm_request.sender
+        recv_type = recv_request.type
+        sender = recv_request.sender
 
-        if comm_type == "NodeRequest":
-            req_type = comm_request.payload.type
+        if recv_type == "NodeRequest":
+            req_type = recv_request.payload.type
 
             if req_type == "sync":
-                peers = comm_request.payload.known_peers
+                peers = recv_request.payload.known_peers
                 await self._sync_peers(peers)
 
-                blocks = comm_request.payload.known_blocks
+                blocks = recv_request.payload.known_blocks
                 await self.node.credit_ledger.sync_blocks(blocks)
 
                 known_peers = [peer_info.address for peer_info in self.peers.values()] + [self.address]
                 known_blocks = await self.node.credit_ledger.get_blocks()
 
-                comm_request = CommRequest(
+                reply_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
                     type="NodeRequest",
@@ -289,11 +296,15 @@ class ZmqCommunicator:
                         known_blocks=known_blocks,
                     )
                 )
-                await self.receiver.send_json(comm_request.model_dump())
+                await self.receiver.send_multipart([
+                    identity,
+                    b'',
+                    json.dumps(reply_request.model_dump()).encode()
+                ])
 
             elif req_type == "probe":
                 accept_request = await self.node.policy.routing_policy.can_accept_route(self.node)
-                comm_request = CommRequest(
+                reply_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
                     type="NodeRequest",
@@ -302,56 +313,64 @@ class ZmqCommunicator:
                         accept_request=accept_request
                     )
                 )
-                await self.receiver.send_json(comm_request.model_dump())
+                await self.receiver.send_multipart([
+                    identity,
+                    b'',
+                    json.dumps(reply_request.model_dump()).encode()
+                ])
 
             elif req_type == "broadcast":
-                new_block = comm_request.payload.known_blocks[0]
-                # await self.node.credit_ledger.receive_block(new_block)
-                accept_block = await self.node.credit_ledger.verify_block(new_block)
+                new_block = recv_request.payload.known_blocks[0]
+                reply_future = await self.node.credit_ledger.receive_broadcast_block(new_block)
 
-                reply_request = CommRequest(
-                    sender=self.address,
-                    receiver=sender,
-                    type="NodeRequest",
-                    payload=NodeRequest(
-                        type="broadcast",
-                        accept_block=accept_block
+                async def send_reply():
+                    accept_block = await reply_future
+                    reply_request = CommRequest(
+                        sender=self.address,
+                        receiver=sender,
+                        type="NodeRequest",
+                        payload=NodeRequest(
+                            type="broadcast",
+                            accept_block=accept_block
+                        )
                     )
-                )
-                await self.receiver.send_json(reply_request.model_dump())
-
-                if accept_block:
-                    await self.node.credit_ledger.apply_verified_block(new_block)
+                    await self.receiver.send_multipart([
+                        identity,
+                        b'',
+                        reply_request.model_dump_json().encode()
+                    ])
+                asyncio.create_task(send_reply())
 
             else:
-                empty_request = CommRequest(
+                reply_request = CommRequest(
                     sender=self.address,
                     receiver=sender,
                     type="EmptyRequest",
                     payload=EmptyRequest()
                 )
-                await self.receiver.send_json(empty_request.model_dump())
+                await self.receiver.send_multipart([
+                    identity,
+                    b'',
+                    json.dumps(reply_request.model_dump()).encode()
+                ])
                 print(f"[{self.node.node_id}  ] Unknown NodeRequest type: {req_type}")
 
 
-        elif comm_type == "ModelRequest":
-            empty_request = CommRequest(
+        elif recv_type == "ModelRequest":
+            reply_request = CommRequest(
                 sender=self.address,
                 receiver=sender,
                 type="EmptyRequest",
                 payload=EmptyRequest()
             )
-            await self.receiver.send_json(empty_request.model_dump())
-    
-            model_request = comm_request.payload
+            await self.receiver.send_multipart([
+                identity,
+                b'',
+                json.dumps(reply_request.model_dump()).encode()
+            ])
+
+            model_request = recv_request.payload
             await self.node.handle_received_model_request(model_request)
         
         else:
-            empty_request = CommRequest(
-                sender=self.address,
-                receiver=sender,
-                type="EmptyRequest",
-                payload=EmptyRequest()
-            )
-            await self.receiver.send_json(empty_request.model_dump())
-            print(f"[{self.node.node_id}  ] Unknown communication type: {comm_type}")
+            print(f"[{self.node.node_id}  ] Unknown communication type: {recv_type}")

@@ -23,12 +23,10 @@ class RequestManager:
         self.node_request_queue = AsyncQueue()
 
         self.req_input_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp)]
-        # self.req_finish_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp, token_num)]
 
         for model in models_config:
             model_path = model["model_path"]
             self.req_input_windows[model_path] = deque()
-            # self.req_finish_windows[model_path] = deque()
 
 
     def record_request_start(self, model_path: str, request_id: str):
@@ -41,18 +39,6 @@ class RequestManager:
             dq.popleft()
 
 
-    # TODO: Time window or count window, or overall average?
-    # def record_request_complete(self, model_path: str, request_id: str, token_num: int):
-    #     """Record the finish time and token count for a request within the window, 
-    #     and update the request_input_speed."""
-    #     current_time = time.time()
-    #     dq = self.req_finish_windows.get(model_path)
-    #     dq.append((request_id, current_time, token_num))
-
-    #     while dq and (current_time - dq[0][1]) > DEFAULT_FINISH_WINDOW_SIZE:
-    #         dq.popleft()
-
-
     def get_windowed_request_count(self, model_path: str) -> int:
         """Get the number of requests sending to a specific model within the window."""
         current_time = time.time()
@@ -62,17 +48,6 @@ class RequestManager:
             dq.popleft()
         
         return len(dq)
-
-
-    # def get_windowed_request_average_length(self, model_path: str) -> int:
-    #     """Get the average length of requests finished within the window."""
-    #     current_time = time.time()
-    #     dq = self.req_finish_windows.get(model_path)
-
-    #     while dq and (current_time - dq[0][1]) > DEFAULT_FINISH_WINDOW_SIZE:
-    #         dq.popleft()
-
-    #     return sum(t[2] for t in dq) / len(dq) if dq else 0
 
 
     async def enque_front_request(self, request: ModelRequest, queue: str = "user"):

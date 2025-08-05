@@ -55,6 +55,7 @@ class LLMNode:
 
         if is_genesis:
             node.credit_ledger = await CreditLedger.init_genesis(node)
+            node.credit_ledger.start()
         else:
             # Only initialized when joining the network
             node.credit_ledger = None
@@ -65,13 +66,14 @@ class LLMNode:
     async def init_ledger_sync(self, block_list: List[Dict]):
         """Initialize the credit ledger with the provided block list."""
         self.credit_ledger = await CreditLedger.init_sync(self, block_list)
+        self.credit_ledger.start()
 
 
     async def start(self):
         """Start the node and its main loops."""
         self._tasks.append(asyncio.create_task(self._listen_loop()))
-        self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
         self._tasks.append(asyncio.create_task(self._dispatch_loop()))
+        self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
 
 
     async def stop(self):
@@ -82,7 +84,10 @@ class LLMNode:
                 await task
             except asyncio.CancelledError:
                 pass
-        self.communicator._stop()
+        self._tasks = []
+        if self.credit_ledger:
+            self.credit_ledger.stop()
+        self.communicator.stop()
         print(f"[{self.node_id}  ] Node stopped.")
     
 
@@ -209,7 +214,6 @@ class LLMNode:
 
     async def _dispatch(self, request: ModelRequest, source: str):
         """Dispatch a request to the appropriate node."""
-        # TODO: Compatible with non-credit ledger nodes
         if not self.credit_ledger:
             return await self.policy.dispatch_policy.dispatch(self, request, source)
 
@@ -251,7 +255,7 @@ class LLMNode:
     async def _dispatch_loop(self):
         """Main loop for dispatching requests."""
         while True:
-            # try:
+            try:
                 request, source = await self.request_manager.fetch_one_request()
 
                 selected_node_id, selected_model = await self._dispatch(request, source)
@@ -272,16 +276,17 @@ class LLMNode:
                         self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
                     )
 
-            # except Exception as e:
-            #     print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
-            #     await asyncio.sleep(1)
+            except Exception as e:
+                print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
+                await asyncio.sleep(1)
 
 
     async def _listen_loop(self):
         """Main loop for listening to incoming requests."""
         while True:
-            # try:
+            try:
                 await self.communicator.listen()
-            # except Exception as e:
-            #     print(f"[{self.node_id}  ] Error in listen loop: {e}")
-            #     await asyncio.sleep(1)
+            except Exception as e:
+                print(f"[{self.node_id}  ] Error in listen loop: {e}")
+                exit(1)
+                await asyncio.sleep(1)
