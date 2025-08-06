@@ -39,6 +39,9 @@ class CreditLedger:
         self.pending_ops: List[CreditOperation] = []
         self.pending_ops_lock = asyncio.Lock()
 
+        self.unconfirmed_ops: List[CreditOperation] = []  # operations that are not yet confirmed by the network
+        self.unconfirmed_ops_lock = asyncio.Lock()
+
         self._new_op_event = asyncio.Event()
 
         self._tasks: List[asyncio.Task] = []
@@ -174,70 +177,31 @@ class CreditLedger:
         await self._submit_operation(reward_op)
 
 
-    async def _handle_potential_fork(self):
-        """Handle potential forks by checking the chain head and blocks."""
-        pass
-
-
-    async def sync_blocks(self, blocks: List[Dict]):
+    async def sync_blocks(self, blocks: List[Dict] = None):
         """Synchronize blocks from another node."""
-        pass
-        # if not blocks:
-        #     return
+        if not blocks:
+            return
 
-        # peer_chain = [CreditBlock.model_validate(block) for block in blocks]
+        peer_chain = [CreditBlock.model_validate(b) for b in blocks]
+        peer_length = len(peer_chain)
+        local_length = len(self.blocks)
 
-        # if not await self._verify_peer_chain(peer_chain):
-        #     print(f"[{self.node.node_id}  ] Peer chain verification failed.")
-        #     return
+        for i in range(min(peer_length, local_length)):
+            if self.blocks[i].block_id != peer_chain[i].block_id:
+                print(f"[{self.node.node_id}  ][ERROR] Conflict! Local: {[blk.block_id for blk in self.blocks]}, Peer: {[blk.block_id for blk in peer_chain]}")
+                return
 
-        # fork_index = None
-        # async with self.blocks_lock:
-        #     local_length = len(self.blocks)
-        #     for i, peer_block in enumerate(peer_chain):
-        #         if i >= local_length:
-        #             fork_index = i
-        #             break
+        if peer_length <= local_length:
+            return
 
-        #         my_block_id = self.blocks[i].block_id
-        #         if peer_block.block_id != my_block_id:
-        #             fork_index = i
-        #             break
+        async with self.blocks_lock:
+            for block in peer_chain[local_length:]:
+                self.blocks.append(block)
+                self.block_index[block.block_id] = block
+                self.chain_head = block.block_id
 
-        # if fork_index is None:
-        #     return
-
-        # # TODO: Handle the fork by replacing the blocks from fork_index onwards
-        # if len(peer_chain) > local_length:
-        #     await self._rollback_to_height(fork_index - 1)
-        #     for block in peer_chain[fork_index:]:
-        #         await self.apply_verified_block(block)
-        #     print(f"[{self.node.node_id}  ] Synchronized and switched to peer's longer chain.")
-        # else:
-        #     print(f"[{self.node.node_id}  ] Peer chain is not longer after fork point.")
-
-
-    # async def _rollback_to_height(self, height: int) -> bool:
-    #     """Rollback the ledger to a specific height."""
-    #     async with self.blocks_lock:
-    #         if height < 0 or height >= len(self.blocks):
-    #             return False
-
-    #         self.blocks = self.blocks[:height+1]
-    #         self.chain_head = self.blocks[-1].block_id
-    #         self.block_index = {block.block_id: block for block in self.blocks}
-
-    #     # TODO: Complecated: Rebuild accounts and stakes from genesis to the new head
-    #     async with self.accounts_lock:
-    #         self.accounts = {}
-    #     async with self.stakes_lock:
-    #         self.stakes = {}
-
-    #     for block in self.blocks:
-    #         for op in block.operations:
-    #             await self._apply_verified_operation(op)
-
-    #     return True
+                for op in block.operations:
+                    await self._apply_verified_operation(op)
 
 
     async def _submit_operation(self, op: CreditOperation):
@@ -267,7 +231,7 @@ class CreditLedger:
             op_type = op.op_type
             if op_type == "create":
                 self.accounts[op.from_id] = CreditAccount(node_id=op.from_id, pubkey=op.metadata.get("public_key", None))
-                print(f"[{self.node.node_id}  ] Created account for {op.from_id}.")
+                # print(f"[{self.node.node_id}  ] Created account for {op.from_id}.")
 
                 async with self.stakes_lock:
                     self.stakes[op.from_id] = 0.0
@@ -280,7 +244,7 @@ class CreditLedger:
                 async with self.stakes_lock:
                     self.stakes[op.from_id] += op.amount
 
-                print(f"[{self.node.node_id}  ] Node {op.from_id} staked {op.amount} credits.")
+                # print(f"[{self.node.node_id}  ] Node {op.from_id} staked {op.amount} credits.")
 
             elif op_type == "unstake":
                 acct = self.accounts[op.from_id]
@@ -290,34 +254,18 @@ class CreditLedger:
                 async with self.stakes_lock:
                     self.stakes[op.from_id] -= op.amount
 
-                print(f"[{self.node.node_id}  ] Node {op.from_id} unstaked {op.amount} credits.")
+                # print(f"[{self.node.node_id}  ] Node {op.from_id} unstaked {op.amount} credits.")
 
             elif op_type == "reward":
                 self.accounts[op.from_id].credit -= op.amount
                 self.accounts[op.to_id].credit += op.amount
-                print(f"[{self.node.node_id}  ] Node {op.from_id} rewarded {op.amount} credits to {op.to_id}.")
+                # print(f"[{self.node.node_id}  ] Node {op.from_id} rewarded {op.amount} credits to {op.to_id}.")
 
 
 
     def _verify_block_signature(self, block: CreditBlock) -> bool:
         """Verify a signature for a given node and data."""
         return block.signature == "signature_" + block.proposer  # TODO: Implement actual signature verification logic
-    
-
-    async def _verify_peer_chain(self, peer_blocks: List[CreditBlock]) -> bool:
-        """Verify the integrity of a peer's chain."""
-        last_block = None
-        for block in peer_blocks:
-            if last_block and block.parent_id != last_block.block_id:
-                print(f"[{self.node.node_id}  ] Peer chain is invalid at block {block.block_id}.")
-                return False
-
-            if not self._verify_block_signature(block):
-                print(f"[{self.node.node_id}  ] Block {block.block_id} signature verification failed.")
-                return False
-
-            last_block = block
-        return True
 
 
     async def receive_broadcast_block(self, new_block: Dict) -> asyncio.Future:
@@ -331,12 +279,7 @@ class CreditLedger:
                 try:
                     async with self.blocks_lock:
                         if new_block.parent_id != self.chain_head:
-                            print(f"[{self.node.node_id}  ] Received block {new_block.block_id} with non-matching parent {new_block.parent_id}. Current head: {self.chain_head}")
-                            future.set_result(False)
-                            return
-
-                        if new_block.block_id in self.block_index:
-                            print(f"[{self.node.node_id}  ] Received duplicate block {new_block.block_id}.")
+                            print(f"[{self.node.node_id}  ][WARNING] Received block {new_block.block_id} with non-matching parent {new_block.parent_id}. Current head: {self.chain_head}")
                             future.set_result(False)
                             return
 
@@ -484,7 +427,7 @@ class CreditLedger:
 
                 async with self.producing_or_listening_lock:
                     block = await self._create_block(ops_to_pack)
-                    print(f"[{self.node.node_id}  ] Producing block: {block.block_id}, parent block: {block.parent_id}.")
+                    # print(f"[{self.node.node_id}  ] Producing block: {block.block_id}, parent block: {block.parent_id}.")
 
                     confirmed = await self.node.communicator.broadcast_block(block)
                     if confirmed:
@@ -493,6 +436,9 @@ class CreditLedger:
                             self.pending_ops = self.pending_ops[BATCH_SIZE:]
 
                         await self.apply_verified_block(block)
+                        # TODO: Handle unconfirmed operations
+                        with self.unconfirmed_ops_lock:
+                            self.unconfirmed_ops.append(block)
                     else:
                         print(f"[{self.node.node_id}  ] Block {block.block_id} not accepted by the network.")
 

@@ -4,7 +4,8 @@ import asyncio
 import yaml
 
 
-from .credit_ledger import CreditLedger
+# from .credit_ledger import CreditLedger
+from .test_credit_ledger import TestCreditLedger
 from .request import ModelRequest
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
@@ -48,25 +49,35 @@ class LLMNode:
         )
 
 
+    # @classmethod
+    # async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
+    #     """Initialize the LLMNode with the given configuration."""
+    #     node = cls(node_id=node_id, config_path=config_path)
+
+    #     if is_genesis:
+    #         node.credit_ledger = await CreditLedger.init_genesis(node)
+    #         node.credit_ledger.start()
+    #     else:
+    #         # Only initialized when joining the network
+    #         node.credit_ledger = None
+
+    #     return node
+    
+
     @classmethod
-    async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
+    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: TestCreditLedger):
         """Initialize the LLMNode with the given configuration."""
         node = cls(node_id=node_id, config_path=config_path)
-
-        if is_genesis:
-            node.credit_ledger = await CreditLedger.init_genesis(node)
-            node.credit_ledger.start()
-        else:
-            # Only initialized when joining the network
-            node.credit_ledger = None
+        node.credit_ledger = ledger
+        await node.credit_ledger.create_account(node_id)
 
         return node
 
 
-    async def init_ledger_sync(self, block_list: List[Dict]):
-        """Initialize the credit ledger with the provided block list."""
-        self.credit_ledger = await CreditLedger.init_sync(self, block_list)
-        self.credit_ledger.start()
+    # async def init_ledger_sync(self, block_list: List[Dict]):
+    #     """Initialize the credit ledger with the provided block list."""
+    #     self.credit_ledger = await CreditLedger.init_sync(self, block_list)
+    #     self.credit_ledger.start()
 
 
     async def start(self):
@@ -74,6 +85,7 @@ class LLMNode:
         self._tasks.append(asyncio.create_task(self._listen_loop()))
         self._tasks.append(asyncio.create_task(self._dispatch_loop()))
         self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
+        # Credit ledger will be started in init() or init_ledger_sync()
 
 
     async def stop(self):
@@ -85,8 +97,8 @@ class LLMNode:
             except asyncio.CancelledError:
                 pass
         self._tasks = []
-        if self.credit_ledger:
-            self.credit_ledger.stop()
+        # if self.credit_ledger:
+        #     self.credit_ledger.stop()
         self.communicator.stop()
         print(f"[{self.node_id}  ] Node stopped.")
     
@@ -94,6 +106,7 @@ class LLMNode:
     async def join_network(self, join_network_url: str):
         """Join the network at the specified URL."""
         await self.communicator._join_network(join_network_url)
+        await asyncio.sleep(3)
 
 
     async def submit_request(self, prompt: str):
@@ -161,7 +174,8 @@ class LLMNode:
         if request.source_node_addr == self.communicator.address:
             # Reward the executor node if it's not the current node
             if request.executor_node_id != self.node_id:
-                await self.credit_ledger.reward(request.executor_node_id, amount=1)
+                # await self.credit_ledger.reward(request.executor_node_id, amount=1)
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
 
             request_id = request.model_request_id
             timer = self.routing_timers.pop(request_id, None)
@@ -182,7 +196,7 @@ class LLMNode:
 
             request.route_path.pop()
             last_hop = request.route_path[-1]
-            print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
+            # print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
 
@@ -212,7 +226,7 @@ class LLMNode:
         return None
 
 
-    async def _dispatch(self, request: ModelRequest, source: str):
+    async def _dispatch_one_request(self, request: ModelRequest, source: str):
         """Dispatch a request to the appropriate node."""
         if not self.credit_ledger:
             return await self.policy.dispatch_policy.dispatch(self, request, source)
@@ -223,7 +237,7 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        target_node_list = self.credit_ledger.select_node_by_pos(seed=request.user_input)
+        target_node_list = self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input)
         if target_node_list:
             target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
             if target_node_id:
@@ -258,7 +272,7 @@ class LLMNode:
             try:
                 request, source = await self.request_manager.fetch_one_request()
 
-                selected_node_id, selected_model = await self._dispatch(request, source)
+                selected_node_id, selected_model = await self._dispatch_one_request(request, source)
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)

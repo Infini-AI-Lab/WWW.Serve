@@ -167,9 +167,6 @@ class ModelManager:
                 self.server_stats[model_path]["token_usage"] = token_usage
 
                 self.server_stats[model_path]["max_requests_per_window"] = self._calculate_max_requests_per_window(model_path)
-
-                # print(f"[{self.node.node_id}  ] Updated metrics for {model_path}:")
-                # print(f"          {self.server_stats[model_path]}")
             
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Failed to update metrics for {model_path}: {e}")

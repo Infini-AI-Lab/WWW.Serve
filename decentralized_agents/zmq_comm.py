@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .core_node import LLMNode
 
 
-COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
+COMM_RESPONSE_TIMEOUT = 3 * 1000    # Timeout for response (ms)
 
 
 
@@ -43,7 +43,6 @@ class ZmqCommunicator:
 
     async def _sync_peers(self, peer_list: List[Address]):
         """Synchronize the peer list with the provided peers."""
-
         async with self.zmq_lock:
             for addr in peer_list:
                 if addr == self.address:
@@ -76,8 +75,8 @@ class ZmqCommunicator:
             peers = response.payload.known_peers
             await self._sync_peers(peers)
 
-            blocks = response.payload.known_blocks
-            await self.node.init_ledger_sync(blocks)
+            # blocks = response.payload.known_blocks
+            # await self.node.init_ledger_sync(blocks)
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_url}")
 
@@ -144,7 +143,7 @@ class ZmqCommunicator:
 
         response = await self._send_request(comm_request)
         if response is None:
-            print(f"[{self.node.node_id}  ] No response from {target_url}.")
+            # print(f"[{self.node.node_id}  ] No response from {target_url}.")
             return None
 
         return CommRequest.model_validate(response)
@@ -217,7 +216,15 @@ class ZmqCommunicator:
             if isinstance(result, CommRequest) and getattr(result.payload, "accept_block", False):
                 accepted_count += 1
 
-        return accepted_count > len(self.peers)//2
+        return accepted_count >= len(self.peers)//2
+
+
+    async def _sync_peers_and_blocks(self, peers: List[Dict], blocks: List[Dict] = None):
+        """Synchronize peers and blocks."""
+        await self._sync_peers(peers)
+
+        # if self.node.credit_ledger:
+        #     await self.node.credit_ledger.sync_blocks(blocks)
 
 
     async def gossip_probe(self):
@@ -225,10 +232,11 @@ class ZmqCommunicator:
         peer_samples = random.sample(list(self.peers.items()), k=min(3, len(self.peers)))
 
         known_peers = [peer_info.address for peer_info in self.peers.values()] + [self.address]
-        if self.node.credit_ledger:
-            known_blocks = await self.node.credit_ledger.get_blocks()
-        else:
-            known_blocks = None
+        known_blocks = None
+        # if self.node.credit_ledger:
+        #     known_blocks = await self.node.credit_ledger.get_blocks()
+        # else:
+        #     known_blocks = None
 
         for node_id, peer_info in peer_samples:
             try:
@@ -242,30 +250,32 @@ class ZmqCommunicator:
                     target_url=peer_info.address.to_url()
                 )
                 if response:
-                    peers = response.payload.known_peers
-                    await self._sync_peers(peers)
-
-                    blocks = response.payload.known_blocks
-                    await self.node.credit_ledger.sync_blocks(blocks)
+                    asyncio.create_task(
+                        self._sync_peers_and_blocks(
+                            response.payload.known_peers,
+                            response.payload.known_blocks
+                        )
+                    )
                 else:
                     # No response from the node
+                    # TODO: BUG: The removed peers may be added back from other nodes!!!
                     self.peers[node_id].fail_count += 1
                     if self.peers[node_id].fail_count >= 3:
                         print(f"[{self.node.node_id}  ] Node {node_id} is offline, removing from peers")
                         self.peers.pop(node_id, None)
 
             except Exception as e:
-                print(f"[{self.node.node_id}  ] Failed to communicate with node {node_id}: {e}")
+                print(f"[{self.node.node_id}  ][WARNING] Failed to communicate with node {node_id}: {e}")
                 self.peers[node_id].fail_count += 1
                 if self.peers[node_id].fail_count >= 3:
-                    print(f"[{self.node.node_id}  ] Node {node_id} is offline, removing from peers")
+                    print(f"[{self.node.node_id}  ][WARNING] Node {node_id} is offline, removing from peers")
                     self.peers.pop(node_id, None)
     
 
     async def listen(self):
         parts = await self.receiver.recv_multipart()
         if len(parts) != 3:
-            print(f"[{self.node.node_id}  ] Invalid message received: {parts}")
+            print(f"[{self.node.node_id}  ][WARNING] Invalid message received: {parts}")
             return
         identity, _, raw_msg = parts
         recv_request = CommRequest.model_validate(json.loads(raw_msg.decode()))
@@ -277,14 +287,16 @@ class ZmqCommunicator:
             req_type = recv_request.payload.type
 
             if req_type == "sync":
-                peers = recv_request.payload.known_peers
-                await self._sync_peers(peers)
-
-                blocks = recv_request.payload.known_blocks
-                await self.node.credit_ledger.sync_blocks(blocks)
+                asyncio.create_task(
+                    self._sync_peers_and_blocks(
+                        recv_request.payload.known_peers,
+                        recv_request.payload.known_blocks
+                    )
+                )
 
                 known_peers = [peer_info.address for peer_info in self.peers.values()] + [self.address]
-                known_blocks = await self.node.credit_ledger.get_blocks()
+                known_blocks = None
+                # known_blocks = await self.node.credit_ledger.get_blocks()
 
                 reply_request = CommRequest(
                     sender=self.address,
@@ -320,26 +332,27 @@ class ZmqCommunicator:
                 ])
 
             elif req_type == "broadcast":
-                new_block = recv_request.payload.known_blocks[0]
-                reply_future = await self.node.credit_ledger.receive_broadcast_block(new_block)
+                pass
+                # new_block = recv_request.payload.known_blocks[0]
+                # reply_future = await self.node.credit_ledger.receive_broadcast_block(new_block)
 
-                async def send_reply():
-                    accept_block = await reply_future
-                    reply_request = CommRequest(
-                        sender=self.address,
-                        receiver=sender,
-                        type="NodeRequest",
-                        payload=NodeRequest(
-                            type="broadcast",
-                            accept_block=accept_block
-                        )
-                    )
-                    await self.receiver.send_multipart([
-                        identity,
-                        b'',
-                        reply_request.model_dump_json().encode()
-                    ])
-                asyncio.create_task(send_reply())
+                # async def send_reply():
+                #     accept_block = await reply_future
+                #     reply_request = CommRequest(
+                #         sender=self.address,
+                #         receiver=sender,
+                #         type="NodeRequest",
+                #         payload=NodeRequest(
+                #             type="broadcast",
+                #             accept_block=accept_block
+                #         )
+                #     )
+                #     await self.receiver.send_multipart([
+                #         identity,
+                #         b'',
+                #         reply_request.model_dump_json().encode()
+                #     ])
+                # asyncio.create_task(send_reply())
 
             else:
                 reply_request = CommRequest(
