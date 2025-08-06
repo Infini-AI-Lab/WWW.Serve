@@ -1,0 +1,26 @@
+# salloc -N 1 -n 8 --gres=gpu:1 -p RTX3090
+# export HF_ENDPOINT=https://hf-mirror.com
+# export PATH=/data1/public/cuda/cuda-11.8/bin:$PATH
+# conda activate vllm
+# vllm serve deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --max-model-len=36000 --host 0.0.0.0 --port 30003
+
+
+server_params:
+  ip: 127.0.0.1
+  port: 5681
+  policy: default_vllm
+
+models:
+  - model_path: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+    base_url: http://192.168.102.12:30003
+    api_key: None
+
+    gen_params:
+      max_tokens: 32768
+      temperature: 0.6
+      top_p: 0.95
+    
+    dispatch_params:
+      target_token_usage: 0.7
+      min_requests_per_window: 10
+      max_requests_per_window: 30
