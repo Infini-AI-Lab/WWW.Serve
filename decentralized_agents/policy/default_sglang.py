@@ -35,7 +35,6 @@ class DefaultSGLangDispatchPolicy(BaseDispatchPolicy):
 
 class DefaultSGLangRoutingPolicy(BaseRoutingPolicy):
     """Default communicator policy for SGLang."""
-
     # TODO: not elegant!!!
     async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""

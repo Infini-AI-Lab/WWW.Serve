@@ -75,6 +75,7 @@ class ModelRequest(BaseModel):
 
     source_node_addr: Address
     route_path: List[str] = Field(default_factory=list)  # URLs of nodes in the route
+    route_idx: int = -1  # Current index in the route path, just for TESTING
 
     user_input: Optional[str] = None
 
@@ -98,6 +99,13 @@ class ModelRequest(BaseModel):
 
     def add_route(self, url: str):
         self.route_path.append(url)
+        self.route_idx += 1 # TODO: Not save!! Just for TESTING
+
+
+    def get_last_route(self) -> str:
+        # self.route_path.pop()
+        self.route_idx -= 1 # TODO: Not save!! Just for TESTING
+        return self.route_path[self.route_idx]
 
 
     def set_response(self, response: dict, executor_node_id: str):

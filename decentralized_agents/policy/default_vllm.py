@@ -35,11 +35,11 @@ class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
 
 class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
     """Default communicator policy for vLLM."""
-
     # TODO: not elegant!!!
     async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
-        return (node._select_local_idle_model() is not None)
+        return (await node.request_manager.get_queue_size("user") == 0) \
+                and (node._select_local_idle_model() is not None)
 
 
 

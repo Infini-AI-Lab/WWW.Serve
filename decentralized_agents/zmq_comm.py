@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .core_node import LLMNode
 
 
-COMM_RESPONSE_TIMEOUT = 3 * 1000    # Timeout for response (ms)
+COMM_RESPONSE_TIMEOUT = 2 * 1000    # Timeout for response (ms)
 
 
 
@@ -116,9 +116,6 @@ class ZmqCommunicator:
 
     async def prepare_and_send_request(self, payload, type: str, target_id: str = None, target_url: str = None) -> Union[CommRequest, None]:
         """Prepare and send a request to a target node or address."""
-        assert target_id or target_url, "Either target_id or target_addr must be provided."
-
-
         if target_id:
             async with self.zmq_lock:
                 target_peerinfo = self.peers.get(target_id, None)
@@ -130,8 +127,7 @@ class ZmqCommunicator:
             target_address = Address.from_url(target_url)
 
 
-        if type == "ModelRequest":
-            assert isinstance(payload, ModelRequest), "Payload must be a ModelRequest for 'model' type."
+        if type == "ModelRequest" and payload.type == "request":
             payload.add_route(target_address.to_url())
 
         comm_request = CommRequest(
@@ -167,7 +163,7 @@ class ZmqCommunicator:
 
     async def select_node_from_candidates(self, candidates: List[str]) -> str | None:
         """Probe the candidate nodes and return the first one that accepts."""
-        tasks = [self._check_node(node_id) for node_id in candidates if node_id != self.node.node_id]
+        tasks = [self._check_node(node_id) for node_id in candidates]
         results = await asyncio.gather(*tasks)
 
         for node_id in results:
@@ -178,13 +174,7 @@ class ZmqCommunicator:
     # TODO: Compatible with non-credit ledger nodes
     async def select_node_from_peers(self):
         """Probe all peers and return the first one that accepts."""
-        tasks = [self._check_node(node_id) for node_id in self.peers.keys()]
-        results = await asyncio.gather(*tasks)
-
-        for node_id in results:
-            if node_id:
-                return node_id
-        return None
+        return await self.select_node_from_candidates(list(self.peers.keys()))
 
 
     async def broadcast_block(self, block):

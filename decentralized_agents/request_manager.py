@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 
 DEFAULT_INPUT_WINDOW_SIZE = 10             # Input window size (s)
-DEFAULT_FINISH_WINDOW_SIZE = 180           # Finish window size (s)
 
 
 class RequestManager:

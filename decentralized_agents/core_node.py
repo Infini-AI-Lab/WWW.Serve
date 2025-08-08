@@ -26,9 +26,9 @@ class LLMNode:
         self.node_id = node_id
 
         with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f)
 
-        self.policy = PolicyManager(policy=config["server_params"]["policy"])
+        self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
         self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
         self.routing_timers: Dict[str, asyncio.Task] = {}  # request_id -> timeout timer task
@@ -36,18 +36,18 @@ class LLMNode:
 
         self.communicator = ZmqCommunicator(
             node=self,
-            ip=config["server_params"]["ip"],
-            port=config["server_params"]["port"],
+            ip=self.config["server_params"]["ip"],
+            port=self.config["server_params"]["port"],
         )
         self.models = ModelManager(
             node=self,
-            models_config=config["models"],
+            models_config=self.config["models"],
         )
         self.request_manager = RequestManager(
             node=self,
-            models_config=config["models"],
+            models_config=self.config["models"],
         )
-
+        self.credit_ledger: TestCreditLedger = None
 
     # @classmethod
     # async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
@@ -69,7 +69,11 @@ class LLMNode:
         """Initialize the LLMNode with the given configuration."""
         node = cls(node_id=node_id, config_path=config_path)
         node.credit_ledger = ledger
-        await node.credit_ledger.create_account(node_id)
+        await node.credit_ledger.create_account(
+            node_id,
+            initial_credit=node.config["ledger_params"]["initial_credit"],
+            initial_staked=node.config["ledger_params"]["initial_staked"]
+        )
 
         return node
 
@@ -127,7 +131,6 @@ class LLMNode:
 
     def resolve_future(self, request: ModelRequest):
         """Resolve a future for a request."""
-        assert request.type == "response", "Cannot resolve future for a non-response type."
         request_id = request.model_request_id
         response = request.model_result
 
@@ -145,6 +148,7 @@ class LLMNode:
         request.set_response(
             {
                 "done_by": self.node_id,
+                "route_path": request.route_path,
                 "content": "Request timed out.",
                 "meta_data": {
                     "finish_reason": "timeout",
@@ -169,8 +173,6 @@ class LLMNode:
 
     async def handle_response_request(self, request: ModelRequest):
         """Handle the inference response from a model server."""
-        assert request.type == "response", "Cannot handle inference response for a non-response type."
-
         if request.source_node_addr == self.communicator.address:
             # Reward the executor node if it's not the current node
             if request.executor_node_id != self.node_id:
@@ -190,12 +192,7 @@ class LLMNode:
 
         else:
             # Trace back the route, send the response to the last hop
-            assert request.route_path, "Route path must not be empty for response handling."
-            assert request.route_path[-1] == self.communicator.address.to_url(), \
-                f"Last hop in route path must be the current node's address, got {request.route_path[-1]} and {self.communicator.address.to_url()}."
-
-            request.route_path.pop()
-            last_hop = request.route_path[-1]
+            last_hop = request.get_last_route()
             # print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
@@ -237,11 +234,12 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        target_node_list = self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input)
-        if target_node_list:
-            target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
-            if target_node_id:
-                return target_node_id, None
+        if await self.credit_ledger.get_account_credit(self.node_id) > 0:
+            target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input)
+            if target_node_list:
+                target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
+                if target_node_id:
+                    return target_node_id, None
 
         # 3. Fallback to local model selection for queuing
         selected_model = self._select_local_model_for_queue()
@@ -270,13 +268,13 @@ class LLMNode:
         """Main loop for dispatching requests."""
         while True:
             try:
+                await asyncio.sleep(1)
                 request, source = await self.request_manager.fetch_one_request()
 
                 selected_node_id, selected_model = await self._dispatch_one_request(request, source)
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
-                    await asyncio.sleep(1)  # Avoid busy waiting
                     continue
 
                 if selected_node_id == self.node_id:
