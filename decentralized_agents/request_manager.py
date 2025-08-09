@@ -4,11 +4,11 @@ from typing import Tuple, Dict, TYPE_CHECKING
 from collections import deque
 
 from .async_queue import AsyncQueue
-from .request import ModelRequest
 
 
 if TYPE_CHECKING:
     from .core_node import LLMNode
+    from .request import ModelRequest
 
 
 DEFAULT_INPUT_WINDOW_SIZE = 10             # Input window size (s)
@@ -49,7 +49,7 @@ class RequestManager:
         return len(dq)
 
 
-    async def enque_front_request(self, request: ModelRequest, queue: str = "user"):
+    async def enque_front_request(self, request: "ModelRequest", queue: str = "user"):
         """Put a user request back into the front of the queue."""
         if queue == "user":
             await self.user_request_queue.put_front(request)
@@ -59,7 +59,7 @@ class RequestManager:
             raise ValueError("Queue must be 'user' or 'node'")
 
 
-    async def enque_request(self, request: ModelRequest, queue: str = "user"):
+    async def enque_request(self, request: "ModelRequest", queue: str = "user"):
         """Enqueue a request to the specified queue."""
         if queue == "user":
             await self.user_request_queue.put(request)
@@ -79,7 +79,7 @@ class RequestManager:
             raise ValueError("Queue must be 'user' or 'node'")
 
 
-    async def fetch_one_request(self) -> Tuple[ModelRequest, str]:
+    async def fetch_one_request(self) -> Tuple["ModelRequest", str]:
         get_user = asyncio.create_task(self.user_request_queue.get())
         get_node = asyncio.create_task(self.node_request_queue.get())
         done, pending = await asyncio.wait(

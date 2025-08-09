@@ -1,18 +1,18 @@
-from typing import Union, Dict, TYPE_CHECKING
+from typing import Union, List, Dict, TYPE_CHECKING
 from openai import AsyncOpenAI
 import asyncio
 import random
-
-from .request import ModelRequest
+import time
 
 
 if TYPE_CHECKING:
     from .core_node import LLMNode
+    from .request import ModelRequest
 
 
 TARGET_TOKEN_USAGE = 0.7
 
-MIN_REQUESTS_PER_WINDOW = 3
+MIN_REQUESTS_PER_WINDOW = 0
 MAX_REQUESTS_PER_WINDOW = 10
 
 DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
@@ -30,6 +30,9 @@ class ModelManager:
         self.dispatch_params: Dict[str, Dict] = {}
 
         self.server_stats: Dict[str, Dict] = {}
+
+        self.server_stats_history: Dict[str, List[Dict]] = {} # Only For TESTING!
+
         self.base_urls: Dict[str, str] = {}
 
         for model_cfg in models_config:
@@ -49,6 +52,7 @@ class ModelManager:
                 "token_usage": 0.0,
                 "max_requests_per_window": self.dispatch_params[model_path].get("min_requests_per_window", MIN_REQUESTS_PER_WINDOW)
             }
+            self.server_stats_history[model_path] = []
             self.base_urls[model_path] = base_url
 
 
@@ -94,7 +98,7 @@ class ModelManager:
         return True
 
 
-    async def inference_request(self, model_path: str, request: ModelRequest):
+    async def inference_request(self, model_path: str, request: "ModelRequest"):
         """Inferencing user input with the specified model."""
         self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
@@ -130,7 +134,8 @@ class ModelManager:
                     }],
                     temperature = gen_params.get("temperature", 0.6),
                     top_p = gen_params.get("top_p", 0.95),
-                    max_completion_tokens = gen_params.get("max_tokens", 256),  # max_new_tokens
+                    # max_completion_tokens = gen_params.get("max_tokens", 256),  # TODO: vLLM will Error code: 400!
+                    max_tokens = gen_params.get("max_tokens", 256)
                 )
                 response = self._format_response(meta_response)
                 response["route_path"] = request.route_path
@@ -168,6 +173,11 @@ class ModelManager:
                 self.server_stats[model_path]["token_usage"] = token_usage
 
                 self.server_stats[model_path]["max_requests_per_window"] = self._calculate_max_requests_per_window(model_path)
-            
+
+                self.server_stats_history[model_path].append({
+                    "timestamp": time.time(),
+                    **self.server_stats[model_path].copy()
+                })
+
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Failed to update metrics for {model_path}: {e}")

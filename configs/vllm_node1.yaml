@@ -1,8 +1,8 @@
-# salloc -N 1 -n 8 --gres=gpu:1 -p RTX3090
+# salloc -N 1 -n 4 --gres=gpu:1 -p RTX3090
 # export HF_ENDPOINT=https://hf-mirror.com
 # export PATH=/data1/public/cuda/cuda-11.8/bin:$PATH
 # conda activate vllm
-# vllm serve deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B --max-model-len=36000 --host 0.0.0.0 --port 30003
+# vllm serve /home/hywang/Reasoning/Decentralized-Agents/models/DeepSeek-R1-Distill-Qwen-7B --max-model-len=36000 --host 0.0.0.0 --port 30003
 
 
 server_params:
@@ -15,7 +15,7 @@ ledger_params:
   initial_staked: 10.0
 
 models:
-  - model_path: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+  - model_path: /home/hywang/Reasoning/Decentralized-Agents/models/DeepSeek-R1-Distill-Qwen-7B
     base_url: http://192.168.102.12:30003
     api_key: None
 
@@ -27,4 +27,4 @@ models:
     dispatch_params:
       target_token_usage: 0.7
       min_requests_per_window: 0
-      max_requests_per_window: 3
+      max_requests_per_window: 10

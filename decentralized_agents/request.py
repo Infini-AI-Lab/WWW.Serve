@@ -1,8 +1,7 @@
 from uuid import uuid4
 import time
-from typing import List, Literal, ClassVar, Optional, Union
+from typing import List, Literal, ClassVar, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
-
 
 from .block import CreditBlock
 
@@ -37,7 +36,6 @@ class PeerInfo(BaseModel):
 
 class NodeRequest(BaseModel):
     type: Literal["sync", "probe", "broadcast"]
-    node_request_id: int = Field(default_factory=lambda: NodeRequest._next_id())
 
     known_peers: Optional[List[Address]] = None
     known_blocks: Optional[List[CreditBlock]] = None
@@ -47,31 +45,13 @@ class NodeRequest(BaseModel):
 
     timestamp: float = Field(default_factory=time.time)
 
-    _cnt: ClassVar[int] = 0
-
     model_config = dict(arbitrary_types_allowed=True)
-
-    @classmethod
-    def _next_id(cls) -> int:
-        val = cls._cnt
-        cls._cnt += 1
-        return val
-
-
-# class ConsensusMessage(BaseModel):
-#     subtype: Literal["propose_block", "vote", "reward", "slash"]
-#     proposer_id: str
-#     signature: str
-#     block_data: Optional[Dict] = None
-#     vote_result: Optional[bool] = None
-#     timestamp: float = Field(default_factory=time.time)
-
 
 
 
 class ModelRequest(BaseModel):
     type: Literal["request", "response"] = "request"
-    model_request_id: int = Field(default_factory=lambda: ModelRequest._next_id())
+    model_request_id: int | None = None
 
     source_node_addr: Address
     route_path: List[str] = Field(default_factory=list)  # URLs of nodes in the route
@@ -88,6 +68,12 @@ class ModelRequest(BaseModel):
 
     # Allow arbitrary types in the Pydantic model
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+    def assign_id(self):
+        if self.model_request_id is None:
+            self.model_request_id = self._next_id()
+        return self
 
 
     @classmethod
@@ -126,19 +112,8 @@ class CommRequest(BaseModel):
     receiver: Address
 
     type: Literal["NodeRequest", "ModelRequest", "EmptyRequest"]
-    payload: Union[NodeRequest, ModelRequest, EmptyRequest]
+    payload: Annotated[Union[NodeRequest, ModelRequest, EmptyRequest], Field(discriminator='type')]
 
-    comm_request_id: int = Field(default_factory=lambda: CommRequest._next_id())
     timestamp: float = Field(default_factory=time.time)
 
-    _cnt: ClassVar[int] = 0
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-    @classmethod
-    def _next_id(cls) -> int:
-        val = cls._cnt
-        cls._cnt += 1
-        return val
-

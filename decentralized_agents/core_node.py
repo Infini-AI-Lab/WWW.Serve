@@ -1,11 +1,10 @@
-from typing import Union, Dict, List
+from typing import Union, Dict, List, TYPE_CHECKING
 from pathlib import Path
 import asyncio
 import yaml
 
 
 # from .credit_ledger import CreditLedger
-from .test_credit_ledger import TestCreditLedger
 from .request import ModelRequest
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
@@ -13,8 +12,12 @@ from .request_manager import RequestManager
 from .policy_manager import PolicyManager
 
 
+if TYPE_CHECKING:
+    from .test_credit_ledger import TestCreditLedger
+
+
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 300      # Default timeout for routed requests (s)
+DEFAULT_REQUEST_TIMEOUT = 900      # Default timeout for routed requests (s)
 MAX_QUEUE_REQS = 10
 
 
@@ -47,7 +50,7 @@ class LLMNode:
             node=self,
             models_config=self.config["models"],
         )
-        self.credit_ledger: TestCreditLedger = None
+        self.credit_ledger: "TestCreditLedger" = None
 
     # @classmethod
     # async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
@@ -65,7 +68,7 @@ class LLMNode:
     
 
     @classmethod
-    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: TestCreditLedger):
+    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger"):
         """Initialize the LLMNode with the given configuration."""
         node = cls(node_id=node_id, config_path=config_path)
         node.credit_ledger = ledger
@@ -119,7 +122,7 @@ class LLMNode:
             source_node_addr=self.communicator.address,
             user_input=prompt,
             type="request"
-        )
+        ).assign_id()
         # TODO: not elegant!
         request.add_route(self.communicator.address.to_url())
 
@@ -129,7 +132,7 @@ class LLMNode:
         return await future
 
 
-    def resolve_future(self, request: ModelRequest):
+    def resolve_future(self, request: "ModelRequest"):
         """Resolve a future for a request."""
         request_id = request.model_request_id
         response = request.model_result
@@ -141,7 +144,7 @@ class LLMNode:
             print(f"[{self.node_id}  ] Future for request {request_id} not found.")
 
 
-    async def _start_timeout_timer(self, request: ModelRequest, timeout: float):
+    async def _start_timeout_timer(self, request: "ModelRequest", timeout: float):
         """Start a timeout timer for a routed request."""
         await asyncio.sleep(timeout)
 
@@ -160,7 +163,7 @@ class LLMNode:
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
 
-    async def handle_received_model_request(self, request: ModelRequest):
+    async def handle_received_model_request(self, request: "ModelRequest"):
         """Handle a received model request."""
         msg_type = request.type
 
@@ -171,7 +174,7 @@ class LLMNode:
             await self.handle_response_request(request)
 
 
-    async def handle_response_request(self, request: ModelRequest):
+    async def handle_response_request(self, request: "ModelRequest"):
         """Handle the inference response from a model server."""
         if request.source_node_addr == self.communicator.address:
             # Reward the executor node if it's not the current node
@@ -197,7 +200,7 @@ class LLMNode:
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
 
-    def _select_local_idle_model(self):
+    def select_local_idle_model(self):
         """Select a local model with no queue requests."""
         for model_path in self.models.clients:
             if not self.models.model_dispatch_available(model_path):
@@ -210,7 +213,7 @@ class LLMNode:
         return None
 
 
-    def _select_local_model_for_queue(self):
+    def select_local_model_for_queue(self):
         """Select a local model for queuing the request."""
         for model_path in self.models.clients:
             if not self.models.model_dispatch_available(model_path):
@@ -223,13 +226,13 @@ class LLMNode:
         return None
 
 
-    async def _dispatch_one_request(self, request: ModelRequest, source: str):
+    async def _dispatch_one_request(self, request: "ModelRequest", source: str):
         """Dispatch a request to the appropriate node."""
         if not self.credit_ledger:
             return await self.policy.dispatch_policy.dispatch(self, request, source)
 
         # 1. Local model selection
-        selected_model = self._select_local_idle_model()
+        selected_model = self.select_local_idle_model()
         if selected_model:
             return self.node_id, selected_model
 
@@ -242,7 +245,7 @@ class LLMNode:
                     return target_node_id, None
 
         # 3. Fallback to local model selection for queuing
-        selected_model = self._select_local_model_for_queue()
+        selected_model = self.select_local_model_for_queue()
         if selected_model:
             return self.node_id, selected_model
 
@@ -268,13 +271,14 @@ class LLMNode:
         """Main loop for dispatching requests."""
         while True:
             try:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
                 request, source = await self.request_manager.fetch_one_request()
 
                 selected_node_id, selected_model = await self._dispatch_one_request(request, source)
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
+                    await asyncio.sleep(1)
                     continue
 
                 if selected_node_id == self.node_id:

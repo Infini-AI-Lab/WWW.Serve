@@ -16,7 +16,7 @@ class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
 
     async def dispatch(self, node, request, source) -> Tuple[Optional[str], Optional[str]]:
         """Dispatch a single request to the appropriate model."""
-        selected_model = node._select_local_idle_model()
+        selected_model = node.select_local_idle_model()
 
         if selected_model:
             return node.node_id, selected_model
@@ -25,7 +25,7 @@ class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
         if target_node_id:
             return target_node_id, None
 
-        selected_model = node._select_local_model_for_queue()
+        selected_model = node.select_local_model_for_queue()
         if selected_model:
             return node.node_id, selected_model
 
@@ -39,7 +39,7 @@ class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
     async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
         return (await node.request_manager.get_queue_size("user") == 0) \
-                and (node._select_local_idle_model() is not None)
+                and (node.select_local_model_for_queue() is not None)
 
 
 

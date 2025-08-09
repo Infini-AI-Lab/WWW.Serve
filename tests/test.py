@@ -69,6 +69,8 @@ async def main():
     ##### Testing code #####
     with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
         data = json.load(f)
+    
+    data = data[:30]
 
     tasks = []
     sem = asyncio.Semaphore(50)
@@ -101,7 +103,7 @@ async def main():
     print({node_id: account.credit for node_id, account in ledger.accounts.items()})
 
 
-    with open("datasets/test.json", "w", encoding="utf-8") as f:
+    with open("datasets/test_1_result.json", "w", encoding="utf-8") as f:
         json.dump(
             [
                 {
@@ -113,9 +115,17 @@ async def main():
             ],
             f,
             ensure_ascii=False,
-            indent=4,
+            indent=2,
         )
 
+    for idx, node in enumerate(nodes):
+        with open(f"datasets/test_1_node_{idx+1}.json", "w", encoding="utf-8") as f:
+            json.dump(
+                node.models.server_stats_history,
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
 if __name__ == "__main__":
     asyncio.run(main())

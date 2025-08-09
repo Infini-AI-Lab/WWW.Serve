@@ -6,7 +6,7 @@ import random
 import json
 
 
-from .request import Address, PeerInfo, CommRequest, NodeRequest, ModelRequest, EmptyRequest
+from .request import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest
 
 
 if TYPE_CHECKING:

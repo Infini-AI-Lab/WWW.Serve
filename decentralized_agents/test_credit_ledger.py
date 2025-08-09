@@ -1,6 +1,5 @@
 from decentralized_agents.block import CreditAccount
 from typing import Dict, List
-import asyncio
 import random
 import hashlib
 import aiorwlock
