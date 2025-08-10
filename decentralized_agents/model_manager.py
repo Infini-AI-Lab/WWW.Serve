@@ -15,7 +15,7 @@ TARGET_TOKEN_USAGE = 0.7
 MIN_REQUESTS_PER_WINDOW = 0
 MAX_REQUESTS_PER_WINDOW = 10
 
-DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
+DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
 
 
 

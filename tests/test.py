@@ -4,20 +4,15 @@ from decentralized_agents.test_credit_ledger import TestCreditLedger
 import asyncio
 import time
 import json
-import random
 
 
-async def timed_submit(prompt, node: LLMNode, sem):
+async def timed_submit(prompt, node: LLMNode, sem, delay = 0.1):
+    await asyncio.sleep(delay)
     async with sem:
         t0 = time.time()
         result = await node.submit_request(prompt)
         t1 = time.time()
         return result, t1 - t0, node.node_id
-
-
-async def simulate_node_crash(node: LLMNode, delay):
-    await asyncio.sleep(delay)
-    await node.stop()
 
 
 async def main():
@@ -69,22 +64,24 @@ async def main():
     ##### Testing code #####
     with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
         data = json.load(f)
-    
-    data = data[:30]
 
     tasks = []
-    sem = asyncio.Semaphore(50)
-    mode = "hotspot"  # "random", "hotspot"
+    sem1 = asyncio.Semaphore(50)
+    sem2 = asyncio.Semaphore(50)
 
-    for item in data:
-        if mode == "random":
-            target_node = random.choice(nodes)
-        elif mode == "hotspot":
-            target_node = nodes[0]
+    for idx, item in enumerate(data):
+        if idx < 150:
+            tasks.append(asyncio.create_task(
+                timed_submit(item["problem"], node1, sem1)
+            ))
+        elif idx < 300:
+            tasks.append(asyncio.create_task(
+                timed_submit(item["problem"], node2, sem2, 400)
+            ))
         else:
-            raise ValueError(f"Unknown mode: {mode}")
-
-        tasks.append(asyncio.create_task(timed_submit(item["problem"], target_node, sem)))
+            tasks.append(asyncio.create_task(
+                timed_submit(item["problem"], node3, sem2, 800)
+            ))
 
     start = time.time()
     results = await asyncio.gather(*tasks)
@@ -103,7 +100,7 @@ async def main():
     print({node_id: account.credit for node_id, account in ledger.accounts.items()})
 
 
-    with open("datasets/test_1_result.json", "w", encoding="utf-8") as f:
+    with open("datasets/test_2_result.json", "w", encoding="utf-8") as f:
         json.dump(
             [
                 {
@@ -119,7 +116,7 @@ async def main():
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"datasets/test_1_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"datasets/test_2_node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,
