@@ -123,8 +123,9 @@ class ModelManager:
             }
             request.set_response(response, executor_node_id=self.node.node_id)
             print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
-        
-        else:
+            await self.node.handle_response_request(request)
+
+        else: # LLM Server
             try:
                 meta_response = await self.clients[model_path].chat.completions.create(
                     model = model_path,
@@ -142,6 +143,7 @@ class ModelManager:
 
                 request.set_response(response, executor_node_id=self.node.node_id)
                 print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
+                await self.node.handle_response_request(request)
             
             except Exception as e:
                 response = {
@@ -154,8 +156,7 @@ class ModelManager:
                 }
                 request.set_response(response, executor_node_id=self.node.node_id)
                 print(f"[{self.node.node_id}  ] Error during inference for request {request.model_request_id}: {e}")
-
-        await self.node.handle_response_request(request)
+                await self.node.handle_response_request(request)
 
 
     def get_server_stats(self, model_path: str) -> Dict:

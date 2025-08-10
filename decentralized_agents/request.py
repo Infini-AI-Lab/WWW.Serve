@@ -88,9 +88,12 @@ class ModelRequest(BaseModel):
         self.route_idx += 1 # TODO: Not save!! Just for TESTING
 
 
-    def get_last_route(self) -> str:
+    def get_last_route(self) -> str | None:
         # self.route_path.pop()
-        self.route_idx -= 1 # TODO: Not save!! Just for TESTING
+        # TODO: Not save!! Just for TESTING
+        self.route_idx -= 1
+        if self.route_idx < 0:
+            return None
         return self.route_path[self.route_idx]
 
 

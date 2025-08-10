@@ -6,13 +6,13 @@ import time
 import json
 
 
-async def timed_submit(prompt, node: LLMNode, sem, delay = 0.1):
-    await asyncio.sleep(delay)
-    async with sem:
-        t0 = time.time()
-        result = await node.submit_request(prompt)
-        t1 = time.time()
-        return result, t1 - t0, node.node_id
+async def timed_submit(prompt, node: LLMNode, delay = 0):
+    if delay > 0:
+        await asyncio.sleep(delay)
+    t0 = time.time()
+    result = await node.submit_request(prompt)
+    t1 = time.time()
+    return result, t1 - t0, node.node_id
 
 
 async def main():
@@ -37,12 +37,12 @@ async def main():
     )
     node4 = await LLMNode.init_with_ledger(
         node_id="node4",
-        config_path="configs/vllm_node1.yaml",
+        config_path="configs/sglang_node4.yaml",
         ledger=ledger,
     )
     node5 = await LLMNode.init_with_ledger(
         node_id="node5",
-        config_path="configs/vllm_node2.yaml",
+        config_path="configs/sglang_node5.yaml",
         ledger=ledger,
     )
 
@@ -66,21 +66,29 @@ async def main():
         data = json.load(f)
 
     tasks = []
-    sem1 = asyncio.Semaphore(50)
-    sem2 = asyncio.Semaphore(50)
+
+    data = data + data
 
     for idx, item in enumerate(data):
-        if idx < 150:
+        if idx < 200:
             tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node1, sem1)
+                timed_submit(item["problem"], node1, idx)
             ))
-        elif idx < 300:
+        elif idx < 400:
             tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node2, sem2, 400)
+                timed_submit(item["problem"], node2, idx)
+            ))
+        elif idx < 600:
+            tasks.append(asyncio.create_task(
+                timed_submit(item["problem"], node3, idx)
+            ))
+        elif idx < 800:
+            tasks.append(asyncio.create_task(
+                timed_submit(item["problem"], node4, idx)
             ))
         else:
             tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node3, sem2, 800)
+                timed_submit(item["problem"], node5, idx)
             ))
 
     start = time.time()
@@ -100,7 +108,7 @@ async def main():
     print({node_id: account.credit for node_id, account in ledger.accounts.items()})
 
 
-    with open("datasets/test_2_result.json", "w", encoding="utf-8") as f:
+    with open("datasets/test_4_result.json", "w", encoding="utf-8") as f:
         json.dump(
             [
                 {
@@ -116,7 +124,7 @@ async def main():
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"datasets/test_2_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"datasets/test_4_node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,

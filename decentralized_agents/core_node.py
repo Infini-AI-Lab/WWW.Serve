@@ -151,7 +151,7 @@ class LLMNode:
         request.set_response(
             {
                 "done_by": self.node_id,
-                "route_path": request.route_path,
+                "route_path": [],
                 "content": "Request timed out.",
                 "meta_data": {
                     "finish_reason": "timeout",
@@ -176,7 +176,11 @@ class LLMNode:
 
     async def handle_response_request(self, request: "ModelRequest"):
         """Handle the inference response from a model server."""
-        if request.source_node_addr == self.communicator.address:
+        last_hop = request.get_last_route()
+
+        if last_hop is None:
+            assert request.source_node_addr == self.communicator.address, "Source address mismatch"
+
             # Reward the executor node if it's not the current node
             if request.executor_node_id != self.node_id:
                 # await self.credit_ledger.reward(request.executor_node_id, amount=1)
@@ -195,8 +199,6 @@ class LLMNode:
 
         else:
             # Trace back the route, send the response to the last hop
-            last_hop = request.get_last_route()
-            # print(f"[{self.node_id}  ] Forwarding response for request {request.model_request_id} to last hop {last_hop}.")
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
 

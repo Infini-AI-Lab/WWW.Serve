@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SESSION_NAME="node4"
+SESSION_NAME="vllm_node1"
 
 ALLOC_CMD="salloc -N 1 -n 4 --gres=gpu:1 -p RTX3090"
 

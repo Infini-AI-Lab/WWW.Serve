@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SESSION_NAME="node1"
+SESSION_NAME="sglang_node3"
 
 ALLOC_CMD="salloc -N 1 -n 4 --gres=gpu:1 -p RTX3090"
 
@@ -12,7 +12,7 @@ CONDA_ENV="sglang"
 
 MODEL_PATH="/home/hywang/Reasoning/Decentralized-Agents/models/DeepSeek-R1-Distill-Qwen-7B"
 
-PORT=30000
+PORT=30002
 
 
 tmux new-session -d -s "$SESSION_NAME"

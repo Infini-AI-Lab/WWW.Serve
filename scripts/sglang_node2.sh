@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SESSION_NAME="node2"
+SESSION_NAME="sglang_node2"
 
 ALLOC_CMD="salloc -N 1 -n 4 --gres=gpu:1 -p RTX3090"
 
