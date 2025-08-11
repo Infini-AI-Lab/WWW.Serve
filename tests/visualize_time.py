@@ -1,7 +1,7 @@
 import json
 import matplotlib.pyplot as plt
 
-json_path = "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_2_result.json"
+json_path = "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_4_result.json"
 
 with open(json_path, "r", encoding="utf-8") as f:
     data = json.load(f)

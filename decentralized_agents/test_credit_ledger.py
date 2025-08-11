@@ -26,6 +26,14 @@ class TestCreditLedger:
             return False
     
 
+    async def delete_account(self, node_id: str):
+        async with self.accounts_lock.writer_lock:
+            if node_id in self.accounts:
+                del self.accounts[node_id]
+                async with self.stakes_lock.writer_lock:
+                    del self.stakes[node_id]
+
+
     async def get_account_credit(self, node_id: str) -> float:
         async with self.accounts_lock.reader_lock:
             account = self.accounts.get(node_id)

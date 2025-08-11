@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, TYPE_CHECKING
+from typing import Union, Dict, List, Set, Tuple, TYPE_CHECKING
 from pathlib import Path
 import asyncio
 import yaml
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .test_credit_ledger import TestCreditLedger
 
 
-GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
+GOSSIP_METRIC_INTERVAL = 5          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 900      # Default timeout for routed requests (s)
 MAX_QUEUE_REQS = 10
 
@@ -34,7 +34,8 @@ class LLMNode:
         self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
         self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
-        self.routing_timers: Dict[str, asyncio.Task] = {}  # request_id -> timeout timer task
+        self.routing_timers: Dict[str, Tuple[asyncio.Task, str, str, ModelRequest]] = {}  # request_id -> (timer, send_to, source, request)
+        self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
         self._tasks: List[asyncio.Task] = []
 
         self.communicator = ZmqCommunicator(
@@ -113,6 +114,7 @@ class LLMNode:
     async def join_network(self, join_network_url: str):
         """Join the network at the specified URL."""
         await self.communicator._join_network(join_network_url)
+        print(f"[{self.node_id}  ] Joined network at {join_network_url}")
         await asyncio.sleep(3)
 
 
@@ -162,6 +164,29 @@ class LLMNode:
         self.resolve_future(request)
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
+        item = self.routing_timers.pop(request.model_request_id, None)
+        if item is not None:
+            _, send_to, _, _ = item
+            self.dispatching_requests[send_to].discard(request.model_request_id)
+
+
+    async def handle_node_offline(self, node_id: str):
+        """Handle the corresponding requests for an offline node."""
+        for req_id in list(self.dispatching_requests[node_id]):
+            item = self.routing_timers.pop(req_id, None)
+            if item is not None:
+                timer, _, source, request = item
+                timer.cancel()
+                try:
+                    await timer
+                except asyncio.CancelledError:
+                    pass
+
+                print(f"[{self.node_id}  ] Request {req_id} requeuing.")
+                await self.request_manager.enque_front_request(request, queue=source)
+
+        self.dispatching_requests.pop(node_id, None)
+
 
     async def handle_received_model_request(self, request: "ModelRequest"):
         """Handle a received model request."""
@@ -176,24 +201,26 @@ class LLMNode:
 
     async def handle_response_request(self, request: "ModelRequest"):
         """Handle the inference response from a model server."""
+        # Always cancel Timer first
+        # TODO: BUG: If the request is routed more than once!
+        item = self.routing_timers.pop(request.model_request_id, None)
+        if item is not None:
+            timer, send_to, _,  _ = item
+            timer.cancel()
+            try:
+                await timer
+            except asyncio.CancelledError:
+                pass
+
+            self.dispatching_requests[send_to].discard(request.model_request_id)
+
         last_hop = request.get_last_route()
 
         if last_hop is None:
-            assert request.source_node_addr == self.communicator.address, "Source address mismatch"
-
             # Reward the executor node if it's not the current node
             if request.executor_node_id != self.node_id:
                 # await self.credit_ledger.reward(request.executor_node_id, amount=1)
                 await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
-
-            request_id = request.model_request_id
-            timer = self.routing_timers.pop(request_id, None)
-            if timer:
-                timer.cancel()
-                try:
-                    await timer
-                except asyncio.CancelledError:
-                    pass
 
             self.resolve_future(request)
 
@@ -255,7 +282,6 @@ class LLMNode:
         return None, None
 
 
-
     async def _gossip_metric_loop(self):
         """Periodically gossip with peers to check their availability, and save server metrics."""
         while True:
@@ -280,7 +306,7 @@ class LLMNode:
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
-                    await asyncio.sleep(1)
+                    # await asyncio.sleep(1)
                     continue
 
                 if selected_node_id == self.node_id:
@@ -290,9 +316,11 @@ class LLMNode:
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-                    self.routing_timers[request.model_request_id] = asyncio.create_task(
+                    timer = asyncio.create_task(
                         self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
                     )
+                    self.routing_timers[request.model_request_id] = (timer, selected_node_id, source, request)
+                    self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")

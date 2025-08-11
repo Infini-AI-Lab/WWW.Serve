@@ -27,8 +27,10 @@ class PeerInfo(BaseModel):
     """Information of a peer node."""
     node_id: str
     address: Address
-    last_update: float = Field(default_factory=time.time)
-    fail_count: int = 0
+    # last_update: float = Field(default_factory=time.time)
+    # fail_count: int = 0
+
+    last_seen: float = 0.0
 
     model_config = dict(arbitrary_types_allowed=True)
 
@@ -37,7 +39,7 @@ class PeerInfo(BaseModel):
 class NodeRequest(BaseModel):
     type: Literal["sync", "probe", "broadcast"]
 
-    known_peers: Optional[List[Address]] = None
+    known_peers: Optional[List[PeerInfo]] = None
     known_blocks: Optional[List[CreditBlock]] = None
     accept_request: Optional[bool] = None
 
