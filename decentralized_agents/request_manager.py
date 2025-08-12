@@ -93,7 +93,7 @@ class RequestManager:
                 await task
             except asyncio.CancelledError:
                 pass
-            
+
 
         request = list(done)[0].result()
         source = "user" if done == {get_user} else "node"

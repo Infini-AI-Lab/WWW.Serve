@@ -192,36 +192,36 @@ class ZmqCommunicator:
         return await self.select_node_from_candidates(list(self.peers.keys()))
 
 
-    async def broadcast_block(self, block):
-        """Broadcast a new block to all peers."""
-        if not self.peers:
-            return True
+    # async def broadcast_block(self, block):
+    #     """Broadcast a new block to all peers."""
+    #     if not self.peers:
+    #         return True
 
-        tasks = []
-        for peer in self.peers.values():
-            if peer.address == self.address:
-                continue
+    #     tasks = []
+    #     for peer in self.peers.values():
+    #         if peer.address == self.address:
+    #             continue
 
-            task = asyncio.create_task(
-                self.prepare_and_send_request(
-                    payload=NodeRequest(
-                        type="broadcast",
-                        known_blocks=[block]
-                    ),
-                    type="NodeRequest",
-                    target_url=peer.address.to_url()
-                )
-            )
-            tasks.append(task)
+    #         task = asyncio.create_task(
+    #             self.prepare_and_send_request(
+    #                 payload=NodeRequest(
+    #                     type="broadcast",
+    #                     known_blocks=[block]
+    #                 ),
+    #                 type="NodeRequest",
+    #                 target_url=peer.address.to_url()
+    #             )
+    #         )
+    #         tasks.append(task)
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        accepted_count = 0
+    #     results = await asyncio.gather(*tasks, return_exceptions=True)
+    #     accepted_count = 0
 
-        for result in results:
-            if isinstance(result, CommRequest) and getattr(result.payload, "accept_block", False):
-                accepted_count += 1
+    #     for result in results:
+    #         if isinstance(result, CommRequest) and getattr(result.payload, "accept_block", False):
+    #             accepted_count += 1
 
-        return accepted_count >= len(self.peers)//2
+    #     return accepted_count >= len(self.peers)//2
 
 
     async def _sync_peers_and_blocks(self, peers: List[PeerInfo], blocks: List[Dict] = None):
@@ -280,7 +280,7 @@ class ZmqCommunicator:
 
         for node_id, offline_time in list(self.offline_peers.items()):
             if now - offline_time > PEER_OFFLINE_TIMEOUT:
-                print(f"[{self.node.node_id}  ] Node {node_id} is really offline, handling...")
+                print(f"[{self.node.node_id}  ] Node {node_id} is really offline, handling concerning requests.")
                 del self.offline_peers[node_id]
                 await self.node.handle_node_offline(node_id)
 
@@ -300,7 +300,7 @@ class ZmqCommunicator:
             req_type = recv_request.payload.type
 
             if req_type == "sync":
-                asyncio.create_task(
+                self.node.create_task(
                     self._sync_peers_and_blocks(
                         recv_request.payload.known_peers,
                         recv_request.payload.known_blocks
@@ -388,7 +388,7 @@ class ZmqCommunicator:
                 json.dumps(reply_request.model_dump()).encode()
             ])
 
-            asyncio.create_task(self.node.handle_received_model_request(recv_request.payload))
+            self.node.create_task(self.node.handle_received_model_request(recv_request.payload))
 
         else:
             print(f"[{self.node.node_id}  ] Unknown communication type: {recv_type}")

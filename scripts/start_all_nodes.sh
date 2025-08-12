@@ -7,4 +7,4 @@ do
     sleep 6
 done
 
-echo "All 5 nodes started."
+echo "All nodes started."

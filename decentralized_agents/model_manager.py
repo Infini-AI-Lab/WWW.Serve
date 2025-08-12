@@ -12,10 +12,10 @@ if TYPE_CHECKING:
 
 TARGET_TOKEN_USAGE = 0.7
 
-MIN_REQUESTS_PER_WINDOW = 0
+MIN_REQUESTS_PER_WINDOW = 1
 MAX_REQUESTS_PER_WINDOW = 10
 
-DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
+DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
 
 
 
@@ -63,8 +63,6 @@ class ModelManager:
             "content": meta_response.choices[0].message.content,
             "meta_data": {
                 "finish_reason": meta_response.choices[0].finish_reason,
-                "model": meta_response.model,
-                "object": meta_response.object,
                 "usage": {
                     "prompt_tokens": meta_response.usage.prompt_tokens,
                     "completion_tokens": meta_response.usage.completion_tokens,
@@ -87,7 +85,7 @@ class ModelManager:
         estimated_reqs = int(min_reqs + scaling_factor * (max_reqs - min_reqs))
 
         return estimated_reqs
-    
+
 
     def model_dispatch_available(self, model_path: str) -> bool:
         """Check if the model is available for dispatch based on requests_per_window."""
@@ -106,24 +104,30 @@ class ModelManager:
         if DEBUG_MODE:
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
+            simu_prompt_token = random.randint(10, 100)
+            simu_completion_token = random.randint(1, 32768)
             response = {
                 "done_by": self.node.node_id,
                 "route_path": request.route_path,
                 "content": "Simulated response.",
                 "meta_data": {
                     "finish_reason": "Simulated",
-                    "model": model_path,
-                    "object": "object_name",
                     "usage": {
-                        "prompt_tokens": -1,
-                        "completion_tokens": -1,
-                        "total_tokens": -1
+                        "prompt_tokens": simu_prompt_token,
+                        "completion_tokens": simu_completion_token,
+                        "total_tokens": simu_prompt_token + simu_completion_token
                     }
                 }
             }
             request.set_response(response, executor_node_id=self.node.node_id)
-            print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
-            await self.node.handle_response_request(request)
+            # TODO: LLM-as-a-Judge!
+            request_with_scores = await self.node.grading_request(request)
+            if request_with_scores:
+                print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
+                await self.node.handle_response_request(request_with_scores)
+            else:
+                print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
+                await self.node.handle_response_request(request)
 
         else: # LLM Server
             try:
@@ -142,8 +146,14 @@ class ModelManager:
                 response["route_path"] = request.route_path
 
                 request.set_response(response, executor_node_id=self.node.node_id)
-                print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished.")
-                await self.node.handle_response_request(request)
+                # TODO: LLM-as-a-Judge!
+                request_with_scores = await self.node.grading_request(request)
+                if request_with_scores:
+                    print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
+                    await self.node.handle_response_request(request_with_scores)
+                else:
+                    print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
+                    await self.node.handle_response_request(request)
             
             except Exception as e:
                 response = {
@@ -152,10 +162,14 @@ class ModelManager:
                     "content": str(e),
                     "meta_data": {
                         "finish_reason": "error",
+                        "usage": {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0
+                        }
                     }
                 }
                 request.set_response(response, executor_node_id=self.node.node_id)
-                print(f"[{self.node.node_id}  ] Error during inference for request {request.model_request_id}: {e}")
                 await self.node.handle_response_request(request)
 
 

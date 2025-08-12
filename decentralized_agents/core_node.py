@@ -36,7 +36,7 @@ class LLMNode:
         self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
         self.routing_timers: Dict[str, Tuple[asyncio.Task, str, str, ModelRequest]] = {}  # request_id -> (timer, send_to, source, request)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: Set[asyncio.Task] = set()
 
         self.communicator = ZmqCommunicator(
             node=self,
@@ -88,23 +88,28 @@ class LLMNode:
     #     self.credit_ledger.start()
 
 
+    def create_task(self, coro) -> asyncio.Task:
+        """Create and schedule a new task."""
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
+
+
     async def start(self):
         """Start the node and its main loops."""
-        self._tasks.append(asyncio.create_task(self._listen_loop()))
-        self._tasks.append(asyncio.create_task(self._dispatch_loop()))
-        self._tasks.append(asyncio.create_task(self._gossip_metric_loop()))
+        self.create_task(self._listen_loop())
+        self.create_task(self._dispatch_loop())
+        self.create_task(self._gossip_metric_loop())
         # Credit ledger will be started in init() or init_ledger_sync()
 
 
     async def stop(self):
         """Stop the node."""
-        for task in self._tasks:
+        for task in list(self._tasks):
             task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-        self._tasks = []
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
         # if self.credit_ledger:
         #     self.credit_ledger.stop()
         self.communicator.stop()
@@ -157,6 +162,11 @@ class LLMNode:
                 "content": "Request timed out.",
                 "meta_data": {
                     "finish_reason": "timeout",
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    }
                 }
             },
             executor_node_id=self.node_id
@@ -186,6 +196,39 @@ class LLMNode:
                 await self.request_manager.enque_front_request(request, queue=source)
 
         self.dispatching_requests.pop(node_id, None)
+        # TODO: Punish?
+
+
+    async def grading_request(self, request: "ModelRequest") -> "ModelRequest":
+        """Grading a single request."""
+        meta_data = request.model_result.get("meta_data", {})
+        finish_reason = meta_data.get("finish_reason", "unknown")
+        completion_tokens = meta_data.get("usage", {}).get("completion_tokens", 0)
+
+        finish_score = 1.0 if finish_reason == "stop" else 0.0
+
+        min_token = 4096
+        max_token = 16384
+        if completion_tokens < min_token:
+            length_score = max(0, completion_tokens / min_token)
+        elif completion_tokens > max_token:
+            over_ratio = (completion_tokens - max_token) / max_token
+            length_score = max(0, 1 - over_ratio)
+        else:
+            length_score = 1.0
+
+        # TODO: LLM-as-a-Judge, or more scores
+
+        request.result_scores = [finish_score, length_score]
+
+        return request
+
+
+    def _calculate_reward(self, scores: List[float]) -> float:
+        """Calculate the reward based on scores."""
+        if not scores:
+            return 1.0
+        return sum(scores)
 
 
     async def handle_received_model_request(self, request: "ModelRequest"):
@@ -220,7 +263,9 @@ class LLMNode:
             # Reward the executor node if it's not the current node
             if request.executor_node_id != self.node_id:
                 # await self.credit_ledger.reward(request.executor_node_id, amount=1)
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+                reward_amount = self._calculate_reward(request.result_scores)
+                print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=reward_amount)
 
             self.resolve_future(request)
 
@@ -267,7 +312,7 @@ class LLMNode:
 
         # 2. Credit-based routing
         if await self.credit_ledger.get_account_credit(self.node_id) > 0:
-            target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input)
+            target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input, k=5)
             if target_node_list:
                 target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
                 if target_node_id:
@@ -311,12 +356,12 @@ class LLMNode:
 
                 if selected_node_id == self.node_id:
                     print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
-                    asyncio.create_task(self.models.inference_request(selected_model, request))
+                    self.create_task(self.models.inference_request(selected_model, request))
 
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-                    timer = asyncio.create_task(
+                    timer = self.create_task(
                         self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
                     )
                     self.routing_timers[request.model_request_id] = (timer, selected_node_id, source, request)

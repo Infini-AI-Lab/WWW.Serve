@@ -1,6 +1,6 @@
 from uuid import uuid4
 import time
-from typing import List, Literal, ClassVar, Optional, Union, Annotated
+from typing import List, Dict, Literal, ClassVar, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
 from .block import CreditBlock
@@ -61,8 +61,10 @@ class ModelRequest(BaseModel):
 
     user_input: Optional[str] = None
 
-    model_result: Optional[dict] = None
+    model_result: Optional[Dict] = None
     executor_node_id: Optional[str] = None
+
+    result_scores: Optional[List[float]] = None
 
     timestamp: float = Field(default_factory=time.time)
 

@@ -32,7 +32,7 @@ for idx, filepath in enumerate(json_files, start=1):
     # df['smoothed_token_usage'] = df['token_usage'].rolling(window=20, center=True).mean()
     # df['smoothed_token_usage'] = savgol_filter(df['token_usage'], window_length=11, polyorder=2)
 
-    plt.plot(df['relative_time'], df['num_running_reqs'], label=f'Node {idx}', lw=0.5)
+    plt.plot(df['relative_time'], df['token_usage'], label=f'Node {idx}', lw=0.5)
 
 plt.xlabel("Time")
 plt.ylabel("Running Requests")
