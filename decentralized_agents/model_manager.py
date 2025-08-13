@@ -105,7 +105,10 @@ class ModelManager:
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
             simu_prompt_token = random.randint(10, 100)
-            simu_completion_token = random.randint(1, 32768)
+            if request.generate_token_length is None:
+                simu_completion_token = random.randint(1, 32768)
+            else:
+                simu_completion_token = request.generate_token_length
             response = {
                 "source_node": request.source_node_addr.node_id,
                 "executor_node": self.node.node_id,
@@ -133,16 +136,34 @@ class ModelManager:
         else: # LLM Server
             try:
                 request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
-                meta_response = await self.clients[model_path].chat.completions.create(
-                    model = model_path,
-                    messages = [{
-                        "role": "user",
-                        "content": request.user_input
-                    }],
-                    temperature = gen_params.get("temperature", 0.6),
-                    top_p = gen_params.get("top_p", 0.95),
-                    max_tokens = gen_params.get("max_tokens", 256)
-                )
+                if request.generate_token_length is None:
+                    meta_response = await self.clients[model_path].chat.completions.create(
+                        model = model_path,
+                        messages = [{
+                            "role": "user",
+                            "content": request.user_input
+                        }],
+                        temperature = gen_params.get("temperature", 0.6),
+                        top_p = gen_params.get("top_p", 0.95),
+                        max_tokens = gen_params.get("max_tokens", 256)
+                    )
+                else:
+                    # If generate_token_length is specified, force the model to generate until it reaches the specified length
+                    meta_response = await self.clients[model_path].chat.completions.create(
+                        model = model_path,
+                        messages = [{
+                            "role": "user",
+                            "content": request.user_input
+                        }],
+                        temperature = gen_params.get("temperature", 0.6),
+                        top_p = gen_params.get("top_p", 0.95),
+                        max_tokens = min(request.generate_token_length, gen_params.get("max_tokens", 256)),
+                        stop=[],
+                        extra_body={"eos_token_id": -1} 
+                    )
+                    usage = meta_response.usage
+                    print(f"[{self.node.node_id}  ] Request {request.model_request_id} , prompt {usage.prompt_tokens} tokens, generated {usage.completion_tokens} tokens.")
+                    # display the
                 request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 
                 response = self._format_response(meta_response)

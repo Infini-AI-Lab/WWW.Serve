@@ -60,6 +60,7 @@ class ModelRequest(BaseModel):
     route_idx: int = -1  # Current index in the route path, just for TESTING
 
     user_input: Optional[str] = None
+    generate_token_length: Optional[int] = None
 
     model_result: Optional[Dict] = None
     executor_node_id: Optional[str] = None

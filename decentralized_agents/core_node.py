@@ -126,12 +126,13 @@ class LLMNode:
         await asyncio.sleep(3)
 
 
-    async def submit_request(self, prompt: str):
+    async def submit_request(self, prompt: str, generate_token_length=None):
         """Entrance for user to submit a request."""
         request = ModelRequest(
             source_node_addr=self.communicator.address,
             user_input=prompt,
-            type="request"
+            type="request",
+            generate_token_length=generate_token_length
         ).assign_id()
         request.timestamp_list[0] = time.time()  # Set submit timestamp
         # TODO: not elegant!
