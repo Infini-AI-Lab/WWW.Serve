@@ -39,6 +39,10 @@ class TestCreditLedger:
             account = self.accounts.get(node_id)
             return account.credit if account else 0.0
 
+    async def get_stake(self, node_id: str) -> float:
+        """Return the current stake of a node."""
+        async with self.stakes_lock.reader_lock:
+            return self.stakes.get(node_id, 0.0)
 
     async def stake(self, node_id: str, amount: float) -> bool:
         async with self.stakes_lock.writer_lock:
@@ -49,6 +53,20 @@ class TestCreditLedger:
                 self.stakes[node_id] += amount
                 account.credit -= amount
                 account.staked += amount
+                return True
+    
+    async def unstake(self, node_id: str, amount: float) -> bool:
+        """Unstake: move 'amount' from staked -> credit."""
+        if amount <= 0:
+            return True
+        async with self.stakes_lock.writer_lock:
+            async with self.accounts_lock.writer_lock:
+                account = self.accounts.get(node_id)
+                if not account or account.staked < amount:
+                    return False
+                self.stakes[node_id] -= amount
+                account.staked -= amount
+                account.credit += amount
                 return True
 
 

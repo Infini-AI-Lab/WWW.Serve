@@ -16,7 +16,7 @@ ledger_params:
 
 models:
   - model_path: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
-    base_url: http://192.168.102.12:30002
+    base_url: http://172.19.136.149:30002
     api_key: None
 
     gen_params:

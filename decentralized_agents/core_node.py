@@ -101,6 +101,8 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
+        self.create_task(self._auto_adjust_stake_loop())
+
         # Credit ledger will be started in init() or init_ledger_sync()
 
 
@@ -229,6 +231,26 @@ class LLMNode:
         if not scores:
             return 1.0
         return sum(scores)
+    
+    def _aggregate_load(self) -> dict:
+        """
+        Aggregate load metrics across all local model servers.
+        Returns:
+            dict with keys: 'avg_token_usage', 'total_queue', 'running'
+        """
+        stats = [self.models.get_server_stats(mp) for mp in self.models.clients.keys()]
+        stats = [s for s in stats if s is not None]
+        if not stats:
+            return {"avg_token_usage": 0.0, "total_queue": 0, "running": 0}
+
+        avg_token_usage = sum(s["token_usage"] for s in stats) / len(stats)
+        total_queue = sum(s["num_queue_reqs"] for s in stats)
+        running = sum(s["num_running_reqs"] for s in stats)
+        return {
+            "avg_token_usage": avg_token_usage,
+            "total_queue": total_queue,
+            "running": running
+        }
 
 
     async def handle_received_model_request(self, request: "ModelRequest"):
@@ -380,4 +402,55 @@ class LLMNode:
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in listen loop: {e}")
                 exit(1)
+                await asyncio.sleep(1)
+
+    async def _auto_adjust_stake_loop(self):
+        """
+        Periodically adjust this node's stake based on local load:
+        - Increase stake when idle -> attract more requests.
+        - Decrease stake when overloaded -> reduce incoming requests.
+        """
+        while True:
+            try:
+                await asyncio.sleep(1)
+
+                if not self.credit_ledger:
+                    continue
+
+                # 1) Aggregate current load metrics
+                load = self._aggregate_load()
+                avg_usage = load["avg_token_usage"]  # Range: 0~1
+                total_q = load["total_queue"]
+
+
+                # 2) Calculate target stake within limits
+                target = 100 * max((0.3 - avg_usage) / 0.3, 0.0)
+
+                # 3) Get current stake and available credit
+                cur_stake = await self.credit_ledger.get_stake(self.node_id)
+                cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
+                
+
+                # 4) Limit adjustment step size to avoid oscillation
+                delta = target - cur_stake
+                if abs(delta) < 1e-6:
+                    continue
+
+
+                # 5) Apply stake or unstake
+                if delta > 0:
+                    # Increase stake (only if credit available)
+                    amount = min(delta, cur_credit)
+                    if amount > 0:
+                        ok = await self.credit_ledger.stake(self.node_id, amount)
+                            # print(f"[{self.node_id}] Auto-stake +{amount:.2f} -> {cur_stake+amount:.2f}")
+                else:
+                    # Decrease stake (leave minimum stake untouched)
+                    amount = min(-delta, cur_stake)
+                    if amount > 0:
+                        ok = await self.credit_ledger.unstake(self.node_id, amount)
+                            # print(f"[{self.node_id}] Auto-unstake -{amount:.2f} -> {cur_stake-amount:.2f}")
+
+            except Exception as e:
+                print(f"[{self.node_id}] Error in auto stake loop: {e}")
                 await asyncio.sleep(1)
