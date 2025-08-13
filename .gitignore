@@ -198,6 +198,7 @@ datasets/
 configs/
 scripts/
 models/
+azure_dataset/*.csv
 
 tests/test.py
 tests/visualize_time.py
