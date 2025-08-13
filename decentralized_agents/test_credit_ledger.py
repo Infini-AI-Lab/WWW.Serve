@@ -43,6 +43,10 @@ class TestCreditLedger:
         """Return the current stake of a node."""
         async with self.stakes_lock.reader_lock:
             return self.stakes.get(node_id, 0.0)
+        
+    async def get_all_stakes(self) -> Dict[str, float]:
+        async with self.stakes_lock.reader_lock:
+            return self.stakes.copy()
 
     async def stake(self, node_id: str, amount: float) -> bool:
         async with self.stakes_lock.writer_lock:

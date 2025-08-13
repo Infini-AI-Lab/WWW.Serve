@@ -202,4 +202,9 @@ azure_dataset/*.csv
 
 tests/test.py
 tests/visualize_time.py
+tests/visualize_load.py
 tests/*.png
+
+examples/agent_chat.py
+
+*.png

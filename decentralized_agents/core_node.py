@@ -102,7 +102,7 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
-        # self.create_task(self._auto_adjust_stake_loop())
+        # self.create_task(self._debug_print_loop())
 
         # Credit ledger will be started in init() or init_ledger_sync()
 
@@ -433,3 +433,50 @@ class LLMNode:
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in listen loop: {e}")
                 await asyncio.sleep(1)
+
+
+    # async def _debug_print_loop(self):
+    #     """
+    #     Periodically print:
+    #       - Local aggregated usage (avg token usage, running, queue).
+    #       - Separate lengths of user and peer queues.
+    #       - This node's credit and stake.
+    #       - Top-K stakes across the ledger (optional).
+    #     """
+    #     while True:
+    #         try:
+    #             await asyncio.sleep(5)
+
+    #             # 1) Local load snapshot
+    #             load = self._aggregate_load()
+    #             avg_usage = load["avg_token_usage"]
+    #             running = load["running"]
+    #             total_q = load["total_queue"]
+
+    #             # 2) Separate queue lengths from RequestManager
+    #             user_q_len = self.request_manager.user_request_queue.qsize()
+    #             peer_q_len = self.request_manager.node_request_queue.qsize()
+
+    #             # 3) Local credit/stake snapshot
+    #             credit = staked = 0.0
+    #             if self.credit_ledger:
+    #                 credit = await self.credit_ledger.get_account_credit(self.node_id)
+    #                 staked = await self.credit_ledger.get_stake(self.node_id)
+    #             # 4) Optional: global ledger snapshot (top-K by stake)
+    #             topk_str = "n/a"
+    #             if self.credit_ledger:
+    #                 all_stakes = await self.credit_ledger.get_all_stakes()
+    #                 if all_stakes:
+    #                     top_items = sorted(all_stakes.items(), key=lambda x: x[1], reverse=True)[:5]
+    #                     topk_str = ",".join(f"{nid}:{stake:.2f}" for nid, stake in top_items)
+
+    #             # 5) Print everything in one line
+    #             print(
+    #                 f"[{self.node_id}] usage={avg_usage:.2f} running={running} "
+    #                 f"queue_total={total_q} user_q={user_q_len} peer_q={peer_q_len} "
+    #                 f"credit={credit:.2f} staked={staked:.2f} | top{5}={topk_str}"
+    #             )
+
+    #         except Exception as e:
+    #             print(f"[{self.node_id}] Error in telemetry loop: {e}")
+    #             await asyncio.sleep(1)

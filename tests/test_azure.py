@@ -78,6 +78,11 @@ async def main():
         config_path="configs/sglang_node4.yaml",
         ledger=ledger,
     )
+    node5 = await LLMNode.init_with_ledger(
+        node_id="node5",
+        config_path="configs/sglang_node5.yaml",
+        ledger=ledger,
+    )
 
     await asyncio.sleep(1)
 
@@ -89,6 +94,8 @@ async def main():
     await asyncio.sleep(random.uniform(1, 3))
     await node4.start()
     await asyncio.sleep(random.uniform(1, 3))
+    await node5.start()
+    await asyncio.sleep(random.uniform(1, 3))
 
     await node2.join_network(node1.communicator.address.to_url())
     await asyncio.sleep(random.uniform(1, 3))
@@ -96,17 +103,24 @@ async def main():
     await asyncio.sleep(random.uniform(1, 3))
     await node4.join_network(node3.communicator.address.to_url())
     await asyncio.sleep(random.uniform(1, 3))
+    await node5.join_network(node4.communicator.address.to_url())
+    await asyncio.sleep(random.uniform(1, 3))
 
     ##### Testing code #####
-    nodes = [node1, node2, node3, node4]
+    nodes = [node1, node2, node3, node4, node5]
 
     tasks = []
 
+    # tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
+    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node2, delay=node2_times[i])) for i in range(len(node2_times))] \
+    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
+    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node4, delay=node4_times[i])) for i in range(len(node4_times))]
 
-    schedule_path = "azure_dataset/node_workloads_5_nodes_100_scale_10800_time_0_start_3600_interval.csv"
+    schedule_path = "azure_dataset/node_workloads_5_nodes_30_scale_10800_time_0_start_3600_interval.csv"
 
     with open(schedule_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
+        count = 0
         for row in reader:
             try:
                 delay_sec = float(row["TIMESTAMP"])
@@ -116,7 +130,9 @@ async def main():
                 prompt = generate_text(int(row["ContextTokens"]))
                 generated_tokens = int(row["GeneratedTokens"])
                 tasks.append(asyncio.create_task(timed_submit(prompt, nodes[node_idx - 1], delay_sec, generate_token_length=generated_tokens)))
-
+                count+=1
+                if (count >= 1000):
+                    break
             except Exception as e:
                 print(f"[warn] skip the row {row}: {e}")
     all_results = await asyncio.gather(*tasks)

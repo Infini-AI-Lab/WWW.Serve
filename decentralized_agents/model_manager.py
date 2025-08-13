@@ -161,8 +161,8 @@ class ModelManager:
                         stop=[],
                         extra_body={"eos_token_id": -1} 
                     )
-                    usage = meta_response.usage
-                    print(f"[{self.node.node_id}  ] Request {request.model_request_id} , prompt {usage.prompt_tokens} tokens, generated {usage.completion_tokens} tokens.")
+                    # usage = meta_response.usage
+                    # print(f"[{self.node.node_id}  ] Request {request.model_request_id} , prompt {usage.prompt_tokens} tokens, generated {usage.completion_tokens} tokens.")
                     # display the
                 request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 
