@@ -5,11 +5,11 @@ from scipy.signal import savgol_filter
 
 
 json_files = [
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_4_node_1.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_4_node_2.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_4_node_3.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_4_node_4.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_load/test_4_node_5.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_1.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_2.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_3.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_4.json",
+    # "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_5.json",
 ]
 
 plt.figure(figsize=(14, 6))

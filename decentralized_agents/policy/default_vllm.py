@@ -39,7 +39,7 @@ class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
     async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
         return (await node.request_manager.get_queue_size("user") == 0) \
-                and (node.select_local_model_for_queue() is not None)
+                and (node.select_local_idle_model() is not None)
 
 
 

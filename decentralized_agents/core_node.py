@@ -18,8 +18,9 @@ if TYPE_CHECKING:
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 900      # Default timeout for routed requests (s)
+DEFAULT_REQUEST_TIMEOUT = 180       # Default timeout for user requests (s)
 MAX_QUEUE_REQS = 10
+IDLE_USAGE_THRESHOLD = 0.6
 
 
 class LLMNode:
@@ -34,8 +35,8 @@ class LLMNode:
 
         self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
-        self.pending_futures: Dict[str, asyncio.Future] = {}  # request_id -> future for user requests
-        self.routing_timers: Dict[str, Tuple[asyncio.Task, str, str, ModelRequest]] = {}  # request_id -> (timer, send_to, source, request)
+        self.pending_futures: Dict[str, Tuple[asyncio.Future, asyncio.Task]] = {}  # request_id -> (future, timer)
+        self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
         self._tasks: Set[asyncio.Task] = set()
 
@@ -79,7 +80,6 @@ class LLMNode:
             initial_credit=node.config["ledger_params"]["initial_credit"],
             initial_staked=node.config["ledger_params"]["initial_staked"]
         )
-
         return node
 
 
@@ -137,17 +137,22 @@ class LLMNode:
         # TODO: not elegant!
         request.add_route(self.communicator.address.to_url())
 
+        timer = self.create_task(self._start_timeout_timer(request, timeout=DEFAULT_REQUEST_TIMEOUT))
         future = asyncio.get_running_loop().create_future()
-        self.pending_futures[request.model_request_id] = future
+        self.pending_futures[request.model_request_id] = (future, timer)
+
         await self.request_manager.enque_request(request, queue="user")
         return await future
 
 
-    def resolve_future(self, request: "ModelRequest"):
-        """Resolve a future for a request."""
+    def resolve_future_timer(self, request: "ModelRequest"):
+        """Resolve the future and timer for a request."""
         request_id = request.model_request_id
 
-        future = self.pending_futures.pop(request_id, None)
+        future, timer = self.pending_futures.pop(request_id, (None, None))
+        if timer and timer is not asyncio.current_task():
+            timer.cancel()
+
         if future and not future.done():
             request.timestamp_list[3] = time.time()  # Set future resolved timestamp
             future.set_result({
@@ -166,10 +171,11 @@ class LLMNode:
 
         request.set_response(
             {
-                "done_by": self.node_id,
+                "source_node": request.source_node_addr.node_id,
+                "executor_node": self.node_id,
                 "content": "Request timed out.",
                 "meta_data": {
-                    "finish_reason": "timeout",
+                    "finish_reason": "TIMEOUT",
                     "usage": {
                         "prompt_tokens": 0,
                         "completion_tokens": 0,
@@ -179,29 +185,19 @@ class LLMNode:
             },
             executor_node_id=self.node_id
         )
-        self.resolve_future(request)
+        self.resolve_future_timer(request)
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
-
-        item = self.routing_timers.pop(request.model_request_id, None)
-        if item is not None:
-            _, send_to, _, _ = item
-            self.dispatching_requests[send_to].discard(request.model_request_id)
 
 
     async def handle_node_offline(self, node_id: str):
         """Handle the corresponding requests for an offline node."""
-        for req_id in list(self.dispatching_requests[node_id]):
-            item = self.routing_timers.pop(req_id, None)
-            if item is not None:
-                timer, _, source, request = item
-                timer.cancel()
-                try:
-                    await timer
-                except asyncio.CancelledError:
-                    pass
+        if self.dispatching_requests.get(node_id) is None:
+            return
 
-                print(f"[{self.node_id}  ] Request {req_id} requeuing.")
-                await self.request_manager.enque_front_request(request, queue=source)
+        for request_id in list(self.dispatching_requests[node_id]):
+            print(f"[{self.node_id}  ] Request {request_id} requeuing.")
+            _, request, source = self.send_to.pop(request_id, (None, None, None))
+            await self.request_manager.enque_front_request(request, queue=source)
 
         self.dispatching_requests.pop(node_id, None)
         # TODO: Punish?
@@ -215,8 +211,8 @@ class LLMNode:
 
         finish_score = 1.0 if finish_reason == "stop" else 0.0
 
-        min_token = 4096
-        max_token = 16384
+        min_token = 256
+        max_token = 768
         if completion_tokens < min_token:
             length_score = max(0, completion_tokens / min_token)
         elif completion_tokens > max_token:
@@ -273,17 +269,8 @@ class LLMNode:
 
     async def handle_response_request(self, request: "ModelRequest"):
         """Handle the inference response from a model server."""
-        # Always cancel Timer first
-        # TODO: BUG: If the request is routed more than once!
-        item = self.routing_timers.pop(request.model_request_id, None)
-        if item is not None:
-            timer, send_to, _,  _ = item
-            timer.cancel()
-            try:
-                await timer
-            except asyncio.CancelledError:
-                pass
-
+        send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
+        if send_to:
             self.dispatching_requests[send_to].discard(request.model_request_id)
 
         last_hop = request.get_last_route()
@@ -296,7 +283,7 @@ class LLMNode:
                 print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
                 await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=reward_amount)
 
-            self.resolve_future(request)
+            self.resolve_future_timer(request)
 
         else:
             # Trace back the route, send the response to the last hop
@@ -310,23 +297,59 @@ class LLMNode:
                 continue
 
             server_stats = self.models.get_server_stats(model_path)
-            num_queue_reqs = server_stats["num_queue_reqs"]
-            if num_queue_reqs == 0:
+
+            token_usage = server_stats["token_usage"]
+            if token_usage < IDLE_USAGE_THRESHOLD:
                 return model_path
         return None
 
 
     def select_local_model_for_queue(self):
         """Select a local model for queuing the request."""
-        for model_path in self.models.clients:
-            if not self.models.model_dispatch_available(model_path):
-                continue
+        raise NotImplementedError
+        # for model_path in self.models.clients:
+        #     if not self.models.model_dispatch_available(model_path):
+        #         continue
 
-            server_stats = self.models.get_server_stats(model_path)
-            num_queue_reqs = server_stats["num_queue_reqs"]
-            if num_queue_reqs < MAX_QUEUE_REQS:
-                return model_path
-        return None
+        #     server_stats = self.models.get_server_stats(model_path)
+        #     num_queue_reqs = server_stats["num_queue_reqs"]
+        #     if num_queue_reqs < MAX_QUEUE_REQS:
+        #         return model_path
+        # return None
+
+
+    async def _auto_adjust_stake(self):
+        if not self.credit_ledger:
+            return
+
+        # 1) Aggregate current load metrics
+        load = self._aggregate_load()
+        avg_usage = load["avg_token_usage"]  # Range: 0~1
+
+        # 2) Calculate target stake within limits
+        target = 100 * max((IDLE_USAGE_THRESHOLD - avg_usage) / IDLE_USAGE_THRESHOLD, 0.0)
+
+        # 3) Get current stake and available credit
+        cur_stake = await self.credit_ledger.get_stake(self.node_id)
+        cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
+        
+
+        # 4) Limit adjustment step size to avoid oscillation
+        delta = target - cur_stake
+        if abs(delta) < 1e-6:
+            return
+
+        # 5) Apply stake or unstake
+        if delta > 0:
+            # Increase stake (only if credit available)
+            amount = min(delta, cur_credit)
+            if amount > 0:
+                ok = await self.credit_ledger.stake(self.node_id, amount)
+        else:
+            # Decrease stake (leave minimum stake untouched)
+            amount = min(-delta, cur_stake)
+            if amount > 0:
+                ok = await self.credit_ledger.unstake(self.node_id, amount)
 
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
@@ -348,9 +371,10 @@ class LLMNode:
                     return target_node_id, None
 
         # 3. Fallback to local model selection for queuing
-        selected_model = self.select_local_model_for_queue()
-        if selected_model:
-            return self.node_id, selected_model
+        # TODO: Do not queue in backend for now
+        # selected_model = self.select_local_model_for_queue()
+        # if selected_model:
+        #     return self.node_id, selected_model
 
         # 4. No model available in the local node or network
         return None, None
@@ -391,10 +415,8 @@ class LLMNode:
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-                    timer = self.create_task(
-                        self._start_timeout_timer(request, DEFAULT_REQUEST_TIMEOUT)
-                    )
-                    self.routing_timers[request.model_request_id] = (timer, selected_node_id, source, request)
+
+                    self.send_to[request.model_request_id] = (selected_node_id, request, source)
                     self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
 
             except Exception as e:
@@ -409,94 +431,4 @@ class LLMNode:
                 await self.communicator.listen()
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in listen loop: {e}")
-                exit(1)
                 await asyncio.sleep(1)
-
-    # async def _auto_adjust_stake_loop(self):
-    #     """
-    #     Periodically adjust this node's stake based on local load:
-    #     - Increase stake when idle -> attract more requests.
-    #     - Decrease stake when overloaded -> reduce incoming requests.
-    #     """
-    #     while True:
-    #         try:
-    #             await asyncio.sleep(1)
-
-    #             if not self.credit_ledger:
-    #                 continue
-
-    #             # 1) Aggregate current load metrics
-    #             load = self._aggregate_load()
-    #             avg_usage = load["avg_token_usage"]  # Range: 0~1
-    #             total_q = load["total_queue"]
-
-
-    #             # 2) Calculate target stake within limits
-    #             target = 100 * max((0.3 - avg_usage) / 0.3, 0.0)
-
-    #             # 3) Get current stake and available credit
-    #             cur_stake = await self.credit_ledger.get_stake(self.node_id)
-    #             cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
-                
-
-    #             # 4) Limit adjustment step size to avoid oscillation
-    #             delta = target - cur_stake
-    #             if abs(delta) < 1e-6:
-    #                 continue
-
-
-    #             # 5) Apply stake or unstake
-    #             if delta > 0:
-    #                 # Increase stake (only if credit available)
-    #                 amount = min(delta, cur_credit)
-    #                 if amount > 0:
-    #                     ok = await self.credit_ledger.stake(self.node_id, amount)
-    #                         # print(f"[{self.node_id}] Auto-stake +{amount:.2f} -> {cur_stake+amount:.2f}")
-    #             else:
-    #                 # Decrease stake (leave minimum stake untouched)
-    #                 amount = min(-delta, cur_stake)
-    #                 if amount > 0:
-    #                     ok = await self.credit_ledger.unstake(self.node_id, amount)
-    #                         # print(f"[{self.node_id}] Auto-unstake -{amount:.2f} -> {cur_stake-amount:.2f}")
-
-    #         except Exception as e:
-    #             print(f"[{self.node_id}] Error in auto stake loop: {e}")
-    #             await asyncio.sleep(1)
-
-
-    async def _auto_adjust_stake(self):
-        try:
-            if not self.credit_ledger:
-                return
-
-            # 1) Aggregate current load metrics
-            load = self._aggregate_load()
-            avg_usage = load["avg_token_usage"]  # Range: 0~1
-
-            # 2) Calculate target stake within limits
-            target = 100 * max((0.6 - avg_usage) / 0.6, 0.0)
-
-            # 3) Get current stake and available credit
-            cur_stake = await self.credit_ledger.get_stake(self.node_id)
-            cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
-            
-
-            # 4) Limit adjustment step size to avoid oscillation
-            delta = target - cur_stake
-            if abs(delta) < 1e-6:
-                return
-
-            # 5) Apply stake or unstake
-            if delta > 0:
-                # Increase stake (only if credit available)
-                amount = min(delta, cur_credit)
-                if amount > 0:
-                    ok = await self.credit_ledger.stake(self.node_id, amount)
-            else:
-                # Decrease stake (leave minimum stake untouched)
-                amount = min(-delta, cur_stake)
-                if amount > 0:
-                    ok = await self.credit_ledger.unstake(self.node_id, amount)
-
-        except Exception as e:
-            print(f"[{self.node_id}  ] Error in auto stake loop: {e}")

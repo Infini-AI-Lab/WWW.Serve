@@ -1,39 +1,54 @@
 import json
 import matplotlib.pyplot as plt
 
-json_path = "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_4_result.json"
+json_path = "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_result.json"
 
 with open(json_path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-times = []
-done_by_list = []
-route_path_cnt = {}
-total_time = 0
+t0 = min(r["timestamp_list"][0] for r in data)
 
-for idx, item in enumerate(data):
-    times.append(item["time_taken"])
-    total_time += item["time_taken"]
-    done_by_list.append(item["result"]["done_by"])
-    route_path_len = len(item["result"]["route_path"])
-    route_path_cnt[route_path_len] = route_path_cnt.get(route_path_len, 0) + 1
-
-plt.figure(figsize=(14, 6))
-
-unique_done_by = list(set(done_by_list))
-colors = {name: plt.cm.tab10(i % 10) for i, name in enumerate(unique_done_by)}
-
-for idx, (time, done_by) in enumerate(zip(times, done_by_list)):
-    plt.scatter(idx, time, color=colors[done_by], s=10, label=done_by if idx == done_by_list.index(done_by) else "")
+timeline_data = []
+for item in data:
+    if item['response']["meta_data"]["finish_reason"] not in ["stop", "length"]:
+        continue
+    t_submit, t_start, t_end, t_return = [ts - t0 for ts in item["timestamp_list"]]
+    timeline_data.append({
+        "node": item['response']["source_node"],
+        "request_id": item['request_id'],
+        "submit": t_submit,
+        "start": t_start,
+        "end": t_end,
+        "return": t_return
+    })
 
 
-plt.xlabel("Question Index")
-plt.ylabel("Time (s)")
-plt.title("Request Completion Time by Done By")
-plt.legend()
+colors = {
+    "queue": "lightgray",
+    "inference": "steelblue",
+    "network": "orange"
+}
+
+fig, ax = plt.subplots(figsize=(14, 6))
+y_pos = 0
+
+for node in sorted(set(d["node"] for d in timeline_data)):
+    node_data = [d for d in timeline_data if d["node"] == node]
+    for req in node_data:
+        # queue time
+        ax.barh(y_pos, req["start"] - req["submit"], left=req["submit"], color=colors["queue"])
+        # inference
+        ax.barh(y_pos, req["end"] - req["start"], left=req["start"], color=colors["inference"])
+        # network delay
+        ax.barh(y_pos, req["return"] - req["end"], left=req["end"], color=colors["network"])
+        y_pos += 1
+    y_pos += 2  # 节点之间留空
+
+ax.set_xlabel("Time (seconds)")
+ax.set_ylabel("Requests")
+ax.set_title("Request Timeline per Node")
+
+
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("test_3.png")
-
-print("Route path length distribution:", route_path_cnt)
-print(f"Total time taken: {total_time:.2f} s, average time taken: {total_time / len(data) if data else 0:.2f} s")
+plt.savefig("test_1.png")

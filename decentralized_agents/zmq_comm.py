@@ -270,6 +270,7 @@ class ZmqCommunicator:
                     offline_nodes.append(node_id)
 
             except Exception as e:
+                print(f"[{self.node.node_id}  ] Failed to probe node {node_id}: {e}")
                 offline_nodes.append(node_id)
 
 

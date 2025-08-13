@@ -102,7 +102,8 @@ class ModelRequest(BaseModel):
 
 
     def set_response(self, response: dict, executor_node_id: str):
-        assert self.type == "request", "Cannot set response for a non-request."
+        if self.type != "request":
+            print(f"Warning: request {self.model_request_id} has response.")
         self.model_result = response
         self.executor_node_id = executor_node_id
         self.type = "response"

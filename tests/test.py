@@ -2,16 +2,20 @@ import _setup_path
 from decentralized_agents.core_node import LLMNode
 from decentralized_agents.test_credit_ledger import TestCreditLedger
 import asyncio
-import time
 import json
 import random
+import numpy as np
+from datasets import load_dataset
+
+# WHAT? Will damage zmq connection!
+data = load_dataset("HuggingFaceH4/MATH-500")['test']
 
 
 async def timed_submit(prompt, node: LLMNode, delay = 0):
     if delay > 0:
         await asyncio.sleep(delay)
     result = await node.submit_request(prompt)
-    return result, node.node_id
+    return result
 
 
 async def node_offline(node: LLMNode, delay=0):
@@ -29,6 +33,18 @@ async def node_start_join(node: LLMNode, url: str, delay=0):
     await asyncio.sleep(random.uniform(1, 5))
 
     await node.join_network(url)
+
+
+def poisson_time_list(rate, start_time, end_time):
+    times = []
+    t = start_time
+    while t < end_time:
+        interval = np.random.exponential(1 / rate)
+        t += interval
+        if t < end_time:
+            times.append(t)
+
+    return times
 
 
 async def main():
@@ -56,101 +72,63 @@ async def main():
         config_path="configs/sglang_node4.yaml",
         ledger=ledger,
     )
-    # node5 = await LLMNode.init_with_ledger(
-    #     node_id="node5",
-    #     config_path="configs/sglang_node5.yaml",
-    #     ledger=ledger,
-    # )
 
     await asyncio.sleep(1)
 
     await node1.start()
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
     await node2.start()
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
     await node3.start()
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
     await node4.start()
-    await asyncio.sleep(random.uniform(1, 5))
-    # await node5.start()
-    # await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
 
     await node2.join_network(node1.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
     await node3.join_network(node2.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(1, 3))
     await node4.join_network(node3.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 5))
-    # await node5.join_network(node4.communicator.address.to_url())
-    # await asyncio.sleep(random.uniform(1, 5))
-
-    print({node_id: (account.credit, account.staked) for node_id, account in ledger.accounts.items()})
+    await asyncio.sleep(random.uniform(1, 3))
 
     ##### Testing code #####
     nodes = [node1, node2, node3, node4]
 
-    with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
+    node1_times = poisson_time_list(rate=0.2, start_time=0, end_time=60) \
+                  + poisson_time_list(rate=2.0, start_time=60, end_time=120) \
+                  + poisson_time_list(rate=0.2, start_time=120, end_time=600)
 
-    tasks = []
+    node2_times = poisson_time_list(rate=0.2, start_time=0, end_time=180) \
+                  + poisson_time_list(rate=2.0, start_time=180, end_time=240) \
+                  + poisson_time_list(rate=0.2, start_time=240, end_time=600)
 
-    # data = data + data
+    node3_times = poisson_time_list(rate=0.2, start_time=0, end_time=300) \
+                  + poisson_time_list(rate=2.0, start_time=300, end_time=360) \
+                  + poisson_time_list(rate=0.2, start_time=360, end_time=600)
 
-    for idx, item in enumerate(data):
-        if idx < 150:
-            tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node1)
-            ))
-        elif idx < 300:
-            tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node2, 150)
-            ))
-        elif idx < 500:
-            tasks.append(asyncio.create_task(
-                timed_submit(item["problem"], node3, 300)
-            ))
-        # elif idx < 1000:
-        #     tasks.append(asyncio.create_task(
-        #         timed_submit(item["problem"], node4, 750)
-        #     ))
-        # else:
-        #     tasks.append(asyncio.create_task(
-        #         timed_submit(item["problem"], node5, idx)
-        #     ))
+    node4_times = poisson_time_list(rate=0.2, start_time=0, end_time=420) \
+                  + poisson_time_list(rate=2.0, start_time=420, end_time=480) \
+                  + poisson_time_list(rate=0.2, start_time=480, end_time=600)
 
-    start = time.time()
-    results = await asyncio.gather(*tasks)
-    elapsed = time.time() - start
+    tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
+             + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node2, delay=node2_times[i])) for i in range(len(node2_times))] \
+             + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
+             + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node4, delay=node4_times[i])) for i in range(len(node4_times))]
 
-    node_stats = {node.node_id: {"in_count": 0, "actual_count": 0, "total_time": 0.0} for node in nodes}
-    for result, node_name in results:
-        node_stats[node_name]["in_count"] += 1
-        node_stats[node_name]["total_time"] += (result["timestamp_list"][3] - result["timestamp_list"][0])
-        node_stats[result["response"]["done_by"]]["actual_count"] += 1
-
-    print(f"All prompts processed in {elapsed:.2f} seconds")
-    for node_name, stats in node_stats.items():
-        print(f"Node {node_name}: input {stats['in_count']} requests, actual {stats['actual_count']}, total time {stats['total_time']:.2f} seconds")
+    all_results = await asyncio.gather(*tasks)
 
     print({node_id: (account.credit, account.staked) for node_id, account in ledger.accounts.items()})
 
-
-    with open("datasets/test_4_result.json", "w", encoding="utf-8") as f:
+    with open("datasets/test_1_result.json", "w", encoding="utf-8") as f:
         json.dump(
-            [
-                {
-                    "data": data[idx],
-                    "result": result,
-                }
-                for idx, (result, _) in enumerate(results)
-            ],
+            all_results,
             f,
             ensure_ascii=False,
             indent=2,
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"datasets/test_4_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"datasets/test_1_node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,

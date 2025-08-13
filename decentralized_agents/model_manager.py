@@ -15,7 +15,7 @@ TARGET_TOKEN_USAGE = 0.6
 MIN_REQUESTS_PER_WINDOW = 1
 MAX_REQUESTS_PER_WINDOW = 10
 
-DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
+DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
 
 
 
@@ -59,7 +59,6 @@ class ModelManager:
     def _format_response(self, meta_response) -> dict:
         """Format the response from the model."""
         return  {
-            "done_by": self.node.node_id,
             "content": meta_response.choices[0].message.content,
             "meta_data": {
                 "finish_reason": meta_response.choices[0].finish_reason,
@@ -108,7 +107,8 @@ class ModelManager:
             simu_prompt_token = random.randint(10, 100)
             simu_completion_token = random.randint(1, 32768)
             response = {
-                "done_by": self.node.node_id,
+                "source_node": request.source_node_addr.node_id,
+                "executor_node": self.node.node_id,
                 "content": "Simulated response.",
                 "meta_data": {
                     "finish_reason": "Simulated",
@@ -137,16 +137,17 @@ class ModelManager:
                     model = model_path,
                     messages = [{
                         "role": "user",
-                        "content": request.user_input + " Please reason step by step, and put your final answer within \\boxed{}."
+                        "content": request.user_input
                     }],
                     temperature = gen_params.get("temperature", 0.6),
                     top_p = gen_params.get("top_p", 0.95),
-                    # max_completion_tokens = gen_params.get("max_tokens", 256),  # TODO: vLLM will Error code: 400!
                     max_tokens = gen_params.get("max_tokens", 256)
                 )
                 request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 
                 response = self._format_response(meta_response)
+                response["source_node"] = request.source_node_addr.node_id
+                response["executor_node"] = self.node.node_id
 
                 request.set_response(response, executor_node_id=self.node.node_id)
                 # TODO: LLM-as-a-Judge!
@@ -157,13 +158,14 @@ class ModelManager:
                 else:
                     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
                     await self.node.handle_response_request(request)
-            
+
             except Exception as e:
                 response = {
-                    "done_by": self.node.node_id,
+                    "source_node": request.source_node_addr.node_id,
+                    "executor_node": self.node.node_id,
                     "content": str(e),
                     "meta_data": {
-                        "finish_reason": "error",
+                        "finish_reason": "ERROR",
                         "usage": {
                             "prompt_tokens": 0,
                             "completion_tokens": 0,
