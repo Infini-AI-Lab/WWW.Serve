@@ -54,7 +54,8 @@ class TestCreditLedger:
                 account.credit -= amount
                 account.staked += amount
                 return True
-    
+
+
     async def unstake(self, node_id: str, amount: float) -> bool:
         """Unstake: move 'amount' from staked -> credit."""
         if amount <= 0:

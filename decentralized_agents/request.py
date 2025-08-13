@@ -66,7 +66,7 @@ class ModelRequest(BaseModel):
 
     result_scores: Optional[List[float]] = None
 
-    timestamp: float = Field(default_factory=time.time)
+    timestamp_list: List[float] = [0.0, 0.0, 0.0, 0.0] # submit -> start inferencing -> end inferecing -> set future
 
     _cnt: ClassVar[int] = 0
 

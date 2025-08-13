@@ -2,6 +2,7 @@ from typing import Union, Dict, List, Set, Tuple, TYPE_CHECKING
 from pathlib import Path
 import asyncio
 import yaml
+import time
 
 
 # from .credit_ledger import CreditLedger
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from .test_credit_ledger import TestCreditLedger
 
 
-GOSSIP_METRIC_INTERVAL = 5          # Gossip & Metric interval (s)
+GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 900      # Default timeout for routed requests (s)
 MAX_QUEUE_REQS = 10
 
@@ -101,7 +102,7 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
-        self.create_task(self._auto_adjust_stake_loop())
+        # self.create_task(self._auto_adjust_stake_loop())
 
         # Credit ledger will be started in init() or init_ledger_sync()
 
@@ -132,6 +133,7 @@ class LLMNode:
             user_input=prompt,
             type="request"
         ).assign_id()
+        request.timestamp_list[0] = time.time()  # Set submit timestamp
         # TODO: not elegant!
         request.add_route(self.communicator.address.to_url())
 
@@ -144,11 +146,16 @@ class LLMNode:
     def resolve_future(self, request: "ModelRequest"):
         """Resolve a future for a request."""
         request_id = request.model_request_id
-        response = request.model_result
 
         future = self.pending_futures.pop(request_id, None)
         if future and not future.done():
-            future.set_result(response)
+            request.timestamp_list[3] = time.time()  # Set future resolved timestamp
+            future.set_result({
+                "request_id": request_id,
+                "route_path": request.route_path,
+                "timestamp_list": request.timestamp_list,
+                "response": request.model_result
+            })
         else:
             print(f"[{self.node_id}  ] Future for request {request_id} not found.")
 
@@ -160,7 +167,6 @@ class LLMNode:
         request.set_response(
             {
                 "done_by": self.node_id,
-                "route_path": [],
                 "content": "Request timed out.",
                 "meta_data": {
                     "finish_reason": "timeout",
@@ -231,7 +237,8 @@ class LLMNode:
         if not scores:
             return 1.0
         return sum(scores)
-    
+
+
     def _aggregate_load(self) -> dict:
         """
         Aggregate load metrics across all local model servers.
@@ -355,6 +362,7 @@ class LLMNode:
             try:
                 await self.communicator.gossip_probe()
                 await self.models.update_server_stats()
+                await self._auto_adjust_stake()
                 await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
             
             except Exception as e:
@@ -404,53 +412,91 @@ class LLMNode:
                 exit(1)
                 await asyncio.sleep(1)
 
-    async def _auto_adjust_stake_loop(self):
-        """
-        Periodically adjust this node's stake based on local load:
-        - Increase stake when idle -> attract more requests.
-        - Decrease stake when overloaded -> reduce incoming requests.
-        """
-        while True:
-            try:
-                await asyncio.sleep(1)
+    # async def _auto_adjust_stake_loop(self):
+    #     """
+    #     Periodically adjust this node's stake based on local load:
+    #     - Increase stake when idle -> attract more requests.
+    #     - Decrease stake when overloaded -> reduce incoming requests.
+    #     """
+    #     while True:
+    #         try:
+    #             await asyncio.sleep(1)
 
-                if not self.credit_ledger:
-                    continue
+    #             if not self.credit_ledger:
+    #                 continue
 
-                # 1) Aggregate current load metrics
-                load = self._aggregate_load()
-                avg_usage = load["avg_token_usage"]  # Range: 0~1
-                total_q = load["total_queue"]
+    #             # 1) Aggregate current load metrics
+    #             load = self._aggregate_load()
+    #             avg_usage = load["avg_token_usage"]  # Range: 0~1
+    #             total_q = load["total_queue"]
 
 
-                # 2) Calculate target stake within limits
-                target = 100 * max((0.3 - avg_usage) / 0.3, 0.0)
+    #             # 2) Calculate target stake within limits
+    #             target = 100 * max((0.3 - avg_usage) / 0.3, 0.0)
 
-                # 3) Get current stake and available credit
-                cur_stake = await self.credit_ledger.get_stake(self.node_id)
-                cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
+    #             # 3) Get current stake and available credit
+    #             cur_stake = await self.credit_ledger.get_stake(self.node_id)
+    #             cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
                 
 
-                # 4) Limit adjustment step size to avoid oscillation
-                delta = target - cur_stake
-                if abs(delta) < 1e-6:
-                    continue
+    #             # 4) Limit adjustment step size to avoid oscillation
+    #             delta = target - cur_stake
+    #             if abs(delta) < 1e-6:
+    #                 continue
 
 
-                # 5) Apply stake or unstake
-                if delta > 0:
-                    # Increase stake (only if credit available)
-                    amount = min(delta, cur_credit)
-                    if amount > 0:
-                        ok = await self.credit_ledger.stake(self.node_id, amount)
-                            # print(f"[{self.node_id}] Auto-stake +{amount:.2f} -> {cur_stake+amount:.2f}")
-                else:
-                    # Decrease stake (leave minimum stake untouched)
-                    amount = min(-delta, cur_stake)
-                    if amount > 0:
-                        ok = await self.credit_ledger.unstake(self.node_id, amount)
-                            # print(f"[{self.node_id}] Auto-unstake -{amount:.2f} -> {cur_stake-amount:.2f}")
+    #             # 5) Apply stake or unstake
+    #             if delta > 0:
+    #                 # Increase stake (only if credit available)
+    #                 amount = min(delta, cur_credit)
+    #                 if amount > 0:
+    #                     ok = await self.credit_ledger.stake(self.node_id, amount)
+    #                         # print(f"[{self.node_id}] Auto-stake +{amount:.2f} -> {cur_stake+amount:.2f}")
+    #             else:
+    #                 # Decrease stake (leave minimum stake untouched)
+    #                 amount = min(-delta, cur_stake)
+    #                 if amount > 0:
+    #                     ok = await self.credit_ledger.unstake(self.node_id, amount)
+    #                         # print(f"[{self.node_id}] Auto-unstake -{amount:.2f} -> {cur_stake-amount:.2f}")
 
-            except Exception as e:
-                print(f"[{self.node_id}] Error in auto stake loop: {e}")
-                await asyncio.sleep(1)
+    #         except Exception as e:
+    #             print(f"[{self.node_id}] Error in auto stake loop: {e}")
+    #             await asyncio.sleep(1)
+
+
+    async def _auto_adjust_stake(self):
+        try:
+            if not self.credit_ledger:
+                return
+
+            # 1) Aggregate current load metrics
+            load = self._aggregate_load()
+            avg_usage = load["avg_token_usage"]  # Range: 0~1
+
+            # 2) Calculate target stake within limits
+            target = 100 * max((0.6 - avg_usage) / 0.6, 0.0)
+
+            # 3) Get current stake and available credit
+            cur_stake = await self.credit_ledger.get_stake(self.node_id)
+            cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
+            
+
+            # 4) Limit adjustment step size to avoid oscillation
+            delta = target - cur_stake
+            if abs(delta) < 1e-6:
+                return
+
+            # 5) Apply stake or unstake
+            if delta > 0:
+                # Increase stake (only if credit available)
+                amount = min(delta, cur_credit)
+                if amount > 0:
+                    ok = await self.credit_ledger.stake(self.node_id, amount)
+            else:
+                # Decrease stake (leave minimum stake untouched)
+                amount = min(-delta, cur_stake)
+                if amount > 0:
+                    ok = await self.credit_ledger.unstake(self.node_id, amount)
+
+        except Exception as e:
+            print(f"[{self.node_id}  ] Error in auto stake loop: {e}")

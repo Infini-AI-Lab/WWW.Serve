@@ -10,12 +10,12 @@ if TYPE_CHECKING:
     from .request import ModelRequest
 
 
-TARGET_TOKEN_USAGE = 0.7
+TARGET_TOKEN_USAGE = 0.6
 
 MIN_REQUESTS_PER_WINDOW = 1
 MAX_REQUESTS_PER_WINDOW = 10
 
-DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
+DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
 
 
 
@@ -102,13 +102,13 @@ class ModelManager:
         gen_params = self.gen_params[model_path]
 
         if DEBUG_MODE:
+            request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
             simu_prompt_token = random.randint(10, 100)
             simu_completion_token = random.randint(1, 32768)
             response = {
                 "done_by": self.node.node_id,
-                "route_path": request.route_path,
                 "content": "Simulated response.",
                 "meta_data": {
                     "finish_reason": "Simulated",
@@ -119,6 +119,7 @@ class ModelManager:
                     }
                 }
             }
+            request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
             request.set_response(response, executor_node_id=self.node.node_id)
             # TODO: LLM-as-a-Judge!
             request_with_scores = await self.node.grading_request(request)
@@ -131,6 +132,7 @@ class ModelManager:
 
         else: # LLM Server
             try:
+                request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
                 meta_response = await self.clients[model_path].chat.completions.create(
                     model = model_path,
                     messages = [{
@@ -142,8 +144,9 @@ class ModelManager:
                     # max_completion_tokens = gen_params.get("max_tokens", 256),  # TODO: vLLM will Error code: 400!
                     max_tokens = gen_params.get("max_tokens", 256)
                 )
+                request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
+
                 response = self._format_response(meta_response)
-                response["route_path"] = request.route_path
 
                 request.set_response(response, executor_node_id=self.node.node_id)
                 # TODO: LLM-as-a-Judge!
@@ -158,7 +161,6 @@ class ModelManager:
             except Exception as e:
                 response = {
                     "done_by": self.node.node_id,
-                    "route_path": request.route_path,
                     "content": str(e),
                     "meta_data": {
                         "finish_reason": "error",
