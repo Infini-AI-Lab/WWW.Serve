@@ -1,42 +1,50 @@
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.signal import savgol_filter
+
+def load_json_as_df(json_path, end = 9999):
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    data_list = list(data.values())[0]
+    start_time = data_list[0]['timestamp']
+    df = pd.DataFrame(data_list)
+    df['relative_time'] = df['timestamp'] - start_time
+    df = df[df['relative_time'] <= end]
+    return df
 
 
-json_files = [
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_1.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_2.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_3.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_4.json",
-    # "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_node_5.json",
+json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test4/test_4_node_1.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_1.json"
+
+json_path_network_others = [
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_2.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_3.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_4.json",
 ]
 
-plt.figure(figsize=(14, 6))
+df_single = load_json_as_df(json_path_single)
+df_network = load_json_as_df(json_path_network)
+dfs_network_others = [load_json_as_df(p) for p in json_path_network_others]
 
-start_time = 0
+# load_key = "num_running_reqs"
+load_key = "token_usage"
 
-for idx, filepath in enumerate(json_files, start=1):
-    with open(filepath, "r", encoding="utf-8") as f:
-        data_dict = json.load(f)
+plt.figure(figsize=(12, 6))
 
-    data = list(data_dict.values())[0]
+plt.plot(df_single['relative_time'], df_single[load_key],
+            color="orange", linewidth=2.5, label="Target Node (Single)")
 
-    if idx == 1:
-        start_time = data[0]['timestamp']
+plt.plot(df_network['relative_time'], df_network[load_key],
+            color="blue", linewidth=2.5, linestyle="--", label="Target Node (DeServe)")
 
-    df = pd.DataFrame(data)
+for df_other in dfs_network_others:
+    plt.plot(df_other['relative_time'], df_other[load_key],
+                color="gray", linewidth=1, alpha=0.3)
 
-    df['relative_time'] = df['timestamp'] - start_time
 
-    # df['smoothed_token_usage'] = df['token_usage'].rolling(window=20, center=True).mean()
-    # df['smoothed_token_usage'] = savgol_filter(df['token_usage'], window_length=11, polyorder=2)
-
-    plt.plot(df['relative_time'], df['token_usage'], label=f'Node {idx}', lw=0.5)
-
-plt.xlabel("Time")
-plt.ylabel("Running Requests")
+plt.xlabel("Relative Time (s)")
+plt.ylabel(load_key.replace("_", " ").title())
 plt.legend()
-plt.grid(True)
+plt.grid(True, linestyle="--", alpha=0.5)
 plt.tight_layout()
-plt.savefig("token_usage_over_time.png")
+plt.savefig("load.png")

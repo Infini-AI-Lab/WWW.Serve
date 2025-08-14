@@ -1,54 +1,44 @@
 import json
 import matplotlib.pyplot as plt
-
-json_path = "/home/hywang/Reasoning/Decentralized-Agents/datasets/test_1_result.json"
-
-with open(json_path, "r", encoding="utf-8") as f:
-    data = json.load(f)
-
-t0 = min(r["timestamp_list"][0] for r in data)
-
-timeline_data = []
-for item in data:
-    if item['response']["meta_data"]["finish_reason"] not in ["stop", "length"]:
-        continue
-    t_submit, t_start, t_end, t_return = [ts - t0 for ts in item["timestamp_list"]]
-    timeline_data.append({
-        "node": item['response']["source_node"],
-        "request_id": item['request_id'],
-        "submit": t_submit,
-        "start": t_start,
-        "end": t_end,
-        "return": t_return
-    })
+import numpy as np
 
 
-colors = {
-    "queue": "lightgray",
-    "inference": "steelblue",
-    "network": "orange"
-}
+def get_latency(json_path):
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-fig, ax = plt.subplots(figsize=(14, 6))
-y_pos = 0
+    latency_list = []
+    for item in data:
+        latency = item["timestamp_list"][-1] - item["timestamp_list"][0]
+        latency_list.append(latency)
 
-for node in sorted(set(d["node"] for d in timeline_data)):
-    node_data = [d for d in timeline_data if d["node"] == node]
-    for req in node_data:
-        # queue time
-        ax.barh(y_pos, req["start"] - req["submit"], left=req["submit"], color=colors["queue"])
-        # inference
-        ax.barh(y_pos, req["end"] - req["start"], left=req["start"], color=colors["inference"])
-        # network delay
-        ax.barh(y_pos, req["return"] - req["end"], left=req["end"], color=colors["network"])
-        y_pos += 1
-    y_pos += 2  # 节点之间留空
-
-ax.set_xlabel("Time (seconds)")
-ax.set_ylabel("Requests")
-ax.set_title("Request Timeline per Node")
+    return latency_list
 
 
-plt.grid(True)
+json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test4/test_4_result.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_result.json"
+
+latency_single = get_latency(json_path_single)
+latency_network = get_latency(json_path_network)
+
+print(len(latency_single), len(latency_network))
+
+n = len(latency_single)
+idx = np.arange(n)
+bar_width = 0.4
+
+plt.figure(figsize=(12, 6))
+
+plt.bar(idx - bar_width/2, latency_single, width=bar_width, 
+        label="Single", color="#1f77b4", alpha=0.8)
+
+plt.bar(idx + bar_width/2, latency_network, width=bar_width, 
+        label="DeServe", color="#ff7f0e", alpha=0.8)
+
+plt.xlabel("Requests")
+plt.ylabel("Latency (s)")
+plt.legend()
+plt.grid(axis="y", linestyle="--", alpha=0.7)
+
 plt.tight_layout()
-plt.savefig("test_1.png")
+plt.savefig("time.png")

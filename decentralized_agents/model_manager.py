@@ -10,10 +10,10 @@ if TYPE_CHECKING:
     from .request import ModelRequest
 
 
-TARGET_TOKEN_USAGE = 0.6
+TARGET_TOKEN_USAGE = 0.5
 
-MIN_REQUESTS_PER_WINDOW = 1
-MAX_REQUESTS_PER_WINDOW = 10
+MIN_REQUESTS_PER_WINDOW = 0
+MAX_REQUESTS_PER_WINDOW = 5
 
 DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
 
@@ -95,7 +95,7 @@ class ModelManager:
         return True
 
 
-    async def inference_request(self, model_path: str, request: "ModelRequest"):
+    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = True):
         """Inferencing user input with the specified model."""
         self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
@@ -136,34 +136,19 @@ class ModelManager:
         else: # LLM Server
             try:
                 request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
-                if request.generate_token_length is None:
-                    meta_response = await self.clients[model_path].chat.completions.create(
-                        model = model_path,
-                        messages = [{
-                            "role": "user",
-                            "content": request.user_input
-                        }],
-                        temperature = gen_params.get("temperature", 0.6),
-                        top_p = gen_params.get("top_p", 0.95),
-                        max_tokens = gen_params.get("max_tokens", 256)
-                    )
-                else:
-                    # If generate_token_length is specified, force the model to generate until it reaches the specified length
-                    meta_response = await self.clients[model_path].chat.completions.create(
-                        model = model_path,
-                        messages = [{
-                            "role": "user",
-                            "content": request.user_input
-                        }],
-                        temperature = gen_params.get("temperature", 0.6),
-                        top_p = gen_params.get("top_p", 0.95),
-                        max_tokens = min(request.generate_token_length, gen_params.get("max_tokens", 256)),
-                        stop=[],
-                        extra_body={"eos_token_id": -1} 
-                    )
-                    # usage = meta_response.usage
-                    # print(f"[{self.node.node_id}  ] Request {request.model_request_id} , prompt {usage.prompt_tokens} tokens, generated {usage.completion_tokens} tokens.")
-                    # display the
+                meta_response = await self.clients[model_path].chat.completions.create(
+                    model = model_path,
+                    messages = [{
+                        "role": "user",
+                        "content": request.user_input
+                    }],
+                    extra_body={
+                        "chat_template_kwargs": {"enable_thinking": enable_thinking},
+                    },
+                    temperature = gen_params.get("temperature", 0.6),
+                    top_p = gen_params.get("top_p", 0.95),
+                    max_tokens = gen_params.get("max_tokens", 256)
+                )
                 request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 
                 response = self._format_response(meta_response)
@@ -218,6 +203,7 @@ class ModelManager:
                     "timestamp": time.time(),
                     **self.server_stats[model_path].copy()
                 })
+                print(f"[{self.node.node_id}  ] Updated metrics: {self.server_stats[model_path]}")
 
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Failed to update metrics for {model_path}: {e}")

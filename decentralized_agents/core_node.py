@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 180       # Default timeout for user requests (s)
+DEFAULT_REQUEST_TIMEOUT = 3000       # Default timeout for user requests (s)
 MAX_QUEUE_REQS = 10
-IDLE_USAGE_THRESHOLD = 0.6
+IDLE_USAGE_THRESHOLD = 0.5
 
 
 class LLMNode:
@@ -71,15 +71,16 @@ class LLMNode:
     
 
     @classmethod
-    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger"):
+    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger" = None):
         """Initialize the LLMNode with the given configuration."""
         node = cls(node_id=node_id, config_path=config_path)
-        node.credit_ledger = ledger
-        await node.credit_ledger.create_account(
-            node_id,
-            initial_credit=node.config["ledger_params"]["initial_credit"],
-            initial_staked=node.config["ledger_params"]["initial_staked"]
-        )
+        if ledger:
+            node.credit_ledger = ledger
+            await node.credit_ledger.create_account(
+                node_id,
+                initial_credit=node.config["ledger_params"]["initial_credit"],
+                initial_staked=node.config["ledger_params"]["initial_staked"]
+            )
         return node
 
 
@@ -208,23 +209,24 @@ class LLMNode:
         """Grading a single request."""
         meta_data = request.model_result.get("meta_data", {})
         finish_reason = meta_data.get("finish_reason", "unknown")
-        completion_tokens = meta_data.get("usage", {}).get("completion_tokens", 0)
+        # completion_tokens = meta_data.get("usage", {}).get("completion_tokens", 0)
 
         finish_score = 1.0 if finish_reason == "stop" else 0.0
 
-        min_token = 256
-        max_token = 768
-        if completion_tokens < min_token:
-            length_score = max(0, completion_tokens / min_token)
-        elif completion_tokens > max_token:
-            over_ratio = (completion_tokens - max_token) / max_token
-            length_score = max(0, 1 - over_ratio)
-        else:
-            length_score = 1.0
+        # min_token = 2048
+        # max_token = 16384
+        # if completion_tokens < min_token:
+        #     length_score = max(0, completion_tokens / min_token)
+        # elif completion_tokens > max_token:
+        #     over_ratio = (completion_tokens - max_token) / max_token
+        #     length_score = max(0, 1 - over_ratio)
+        # else:
+        #     length_score = 1.0
 
         # TODO: LLM-as-a-Judge, or more scores
 
-        request.result_scores = [finish_score, length_score]
+        # request.result_scores = [finish_score, length_score]
+        request.result_scores = [finish_score]
 
         return request
 
@@ -278,7 +280,7 @@ class LLMNode:
 
         if last_hop is None:
             # Reward the executor node if it's not the current node
-            if request.executor_node_id != self.node_id:
+            if self.credit_ledger and request.executor_node_id != self.node_id:
                 # await self.credit_ledger.reward(request.executor_node_id, amount=1)
                 reward_amount = self._calculate_reward(request.result_scores)
                 print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
@@ -355,8 +357,8 @@ class LLMNode:
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
         """Dispatch a request to the appropriate node."""
-        if not self.credit_ledger:
-            return await self.policy.dispatch_policy.dispatch(self, request, source)
+        # if not self.credit_ledger:
+        #     return await self.policy.dispatch_policy.dispatch(self, request, source)
 
         # 1. Local model selection
         selected_model = self.select_local_idle_model()
@@ -364,7 +366,7 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        if await self.credit_ledger.get_account_credit(self.node_id) > 0:
+        if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
             target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input, k=5)
             if target_node_list:
                 target_node_id = await self.communicator.select_node_from_candidates(target_node_list)

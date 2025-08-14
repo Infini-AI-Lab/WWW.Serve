@@ -198,6 +198,7 @@ datasets/
 configs/
 scripts/
 models/
+results/
 azure_dataset/*.csv
 
 tests/test.py
