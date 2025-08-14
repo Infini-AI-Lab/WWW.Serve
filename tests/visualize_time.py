@@ -8,18 +8,30 @@ def get_latency(json_path):
         data = json.load(f)
 
     latency_list = []
-    for item in data:
+    error_idx = set()
+    for idx, item in enumerate(data):
+        if item["response"]["meta_data"]["finish_reason"] != "stop":
+            error_idx.add(idx)
         latency = item["timestamp_list"][-1] - item["timestamp_list"][0]
         latency_list.append(latency)
 
-    return latency_list
+    return latency_list, error_idx
 
 
-json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test4/test_4_result.json"
-json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_result.json"
+json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test8/test_8_result.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test7/test_7_result.json"
 
-latency_single = get_latency(json_path_single)
-latency_network = get_latency(json_path_network)
+latency_single, err_set_single = get_latency(json_path_single)
+latency_network, err_set_network = get_latency(json_path_network)
+
+print(len(latency_single), len(latency_network))
+
+total_err_set = err_set_single.union(err_set_network)
+total_corr_set = set(range(len(latency_single))).difference(total_err_set)
+
+idx = sorted(total_corr_set)
+latency_single = [latency_single[i] for i in idx]
+latency_network = [latency_network[i] for i in idx]
 
 print(len(latency_single), len(latency_network))
 

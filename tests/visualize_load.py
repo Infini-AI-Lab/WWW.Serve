@@ -13,13 +13,13 @@ def load_json_as_df(json_path, end = 9999):
     return df
 
 
-json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test4/test_4_node_1.json"
-json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_1.json"
+json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test8/test_8_node_3.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test7/test_7_node_3.json"
 
 json_path_network_others = [
-    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_2.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_3.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_3_node_4.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test7/test_7_node_1.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test7/test_7_node_2.json",
+    # "/home/hywang/Reasoning/Decentralized-Agents/results/test3/test_7_node_4.json",
 ]
 
 df_single = load_json_as_df(json_path_single)
