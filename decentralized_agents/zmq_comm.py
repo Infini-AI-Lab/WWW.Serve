@@ -186,6 +186,20 @@ class ZmqCommunicator:
                 return node_id
         return None
 
+    async def select_k_nodes_from_candidates(self, candidates: List[str], k) -> List[str]:
+        """Probe the candidate nodes and return the first k that accepts."""
+        tasks = [self._check_node(node_id) for node_id in candidates]
+        results = await asyncio.gather(*tasks)
+
+        accepted_nodes = []
+        for node_id in results:
+            if node_id:
+                accepted_nodes.append(node_id)
+                k -= 1
+            if k <= 0:
+                break
+        return accepted_nodes
+
     # TODO: Compatible with non-credit ledger nodes
     async def select_node_from_peers(self):
         """Probe all peers and return the first one that accepts."""

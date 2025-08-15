@@ -4,7 +4,7 @@ from typing import List, Dict, Literal, ClassVar, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
 from .block import CreditBlock
-
+import copy
 
 
 class Address(BaseModel):
@@ -71,6 +71,9 @@ class ModelRequest(BaseModel):
 
     _cnt: ClassVar[int] = 0
 
+    duel: bool = True
+    is_judge_task: bool = False
+
     # Allow arbitrary types in the Pydantic model
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -108,6 +111,12 @@ class ModelRequest(BaseModel):
         self.model_result = response
         self.executor_node_id = executor_node_id
         self.type = "response"
+    
+    def copy_request(self) -> "ModelRequest":
+        """Return a deep copy of this ModelRequest."""
+        copy_req = copy.deepcopy(self)
+        copy_req.model_request_id = None
+        return copy_req
 
 
 

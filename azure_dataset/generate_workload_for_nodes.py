@@ -6,7 +6,7 @@ file_path = "AzureLLMInferenceTrace_conv_1week.csv"  # input
 output_path = "node_workloads.csv"                   # output CSV
 
 number_of_nodes = 5         # total nodes
-scale = 30                 # pick 1 row out of every 'scale' rows
+scale = 1                 # pick 1 row out of every 'scale' rows
 time_difference = 3 * 3600  # seconds between start times of consecutive nodes
 starting_time = 0           # start offset in seconds from the dataset's earliest time
 interval_length = 3600      # seconds of workload to take for each node

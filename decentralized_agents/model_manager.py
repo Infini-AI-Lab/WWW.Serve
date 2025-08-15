@@ -95,7 +95,7 @@ class ModelManager:
         return True
 
 
-    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = True):
+    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = False):
         """Inferencing user input with the specified model."""
         self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]

@@ -87,54 +87,41 @@ async def main():
     await asyncio.sleep(1)
 
     await node1.start()
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node2.start()
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node3.start()
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node4.start()
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node5.start()
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
 
     await node2.join_network(node1.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node3.join_network(node2.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node4.join_network(node3.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
     await node5.join_network(node4.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
+    # await asyncio.sleep(random.uniform(1, 3))
 
     ##### Testing code #####
     nodes = [node1, node2, node3, node4, node5]
 
+    with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
     tasks = []
 
-    # tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
-    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node2, delay=node2_times[i])) for i in range(len(node2_times))] \
-    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
-    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node4, delay=node4_times[i])) for i in range(len(node4_times))]
+    data = data[:20]
 
-    schedule_path = "azure_dataset/node_workloads_5_nodes_30_scale_10800_time_0_start_3600_interval.csv"
+    for idx, item in enumerate(data):
+        node = nodes[idx % len(nodes)]
+        tasks.append(asyncio.create_task(timed_submit(item["problem"], node5, delay=idx*2)))
 
-    with open(schedule_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        count = 0
-        for row in reader:
-            try:
-                delay_sec = float(row["TIMESTAMP"])
-                node_idx = int(row["node_index"])
-                if(node_idx > len(nodes)):
-                    continue
-                prompt = generate_text(int(row["ContextTokens"]))
-                generated_tokens = int(row["GeneratedTokens"])
-                tasks.append(asyncio.create_task(timed_submit(prompt, nodes[node_idx - 1], delay_sec, generate_token_length=generated_tokens)))
-                count+=1
-                if (count >= 1000):
-                    break
-            except Exception as e:
-                print(f"[warn] skip the row {row}: {e}")
+
+
     all_results = await asyncio.gather(*tasks)
 
     print({node_id: (account.credit, account.staked) for node_id, account in ledger.accounts.items()})
