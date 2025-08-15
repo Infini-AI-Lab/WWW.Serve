@@ -46,6 +46,11 @@ async def main():
         config_path="configs/sglang_node5.yaml",
         ledger=ledger,
     )
+    node6 = await LLMNode.init_with_ledger(
+        node_id="node6",
+        config_path="configs/sglang_node6.yaml",
+        ledger=ledger,
+    )
 
     await asyncio.sleep(1)
 

@@ -109,7 +109,7 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
-        # self.create_task(self._debug_print_loop())
+        self.create_task(self._debug_print_loop())
 
         # Credit ledger will be started in init() or init_ledger_sync()
 
@@ -173,30 +173,24 @@ class LLMNode:
             print(f"[{self.node_id}  ] Future for request {request_id} not found.")
 
     def _build_judge_payload(self, user_input, content_A, content_B):
-        import random
-        pair = [("A", content_A), ("B", content_B)]
-        random.shuffle(pair)
-        order = [pair[0][0], pair[1][0]]
-
         prompt = (
-            "You are a strict and meticulous judge. Your task is to choose the better of the two answers below, "
-            "based on the following criteria:\n"
-            "1. Whether the answer is correct\n"
-            "2. Whether the answer is complete\n"
-            "3. Whether the answer strictly follows the instructions\n\n"
-            "You must strictly follow this format: output only a single letter A or B. "
-            "No other content, no explanations, and no additional remarks.\n\n"
-            f"[Question]: {user_input}\n\n"
-            f"Answer A:\n{pair[0][1]}\n\n"
-            f"Answer B:\n{pair[1][1]}\n\n"
-            "Directly provide your choice: output only a single letter A or B. "
-            "No other content, no explanations, and no additional remarks."
+            "你是一个审慎、严厉的评审官。你的任务是从下面两个回答中选择更优的一个，判断标准包括：\n"
+            "1. 回答是否正确\n"
+            "2. 回答是否完整\n"
+            "3. 回答是否严格遵循指令\n\n"
+            "请严格按照以下格式作答：只能输出一个字母 A 或 B，不能有其他内容，不能解释原因，不能添加任何说明。\n\n"
+            f"【问题】：{user_input}\n\n"
+            f"回答A：\n{content_A}\n\n"
+            f"回答B：\n{content_B}\n\n"
+            "请直接给出你的选择,只能输出一个字母 A 或 B，不能有其他内容，不能解释原因，不能添加任何说明。"
         )
+
         return prompt
 
     
     async def _settle_duel(self, duel_id: str):
         print("_______________length:", len(self.duel_states))
+        print("_______________st[votes]:", self.duel_states[duel_id]["votes"])
         st = self.duel_states.pop(duel_id, None)
         if not st: return
         A_exec = st["A"].executor_node_id
@@ -205,26 +199,18 @@ class LLMNode:
         # 统计票
         a_votes = sum(1 for _,v in st["votes"] if v=="A")
         b_votes = sum(1 for _,v in st["votes"] if v=="B")
-        print(f"[{self.node_id}  ] Duel {duel_id} results: A={a_votes}, B={b_votes}")
+        print(f"[{self.node_id}  ] Duel {duel_id} votes: A={a_votes}, B={b_votes}")
         if a_votes==b_votes:
             # 平局：可直接平均奖励/不转移stake
             winner, loser = None, None
         else:
             winner, loser = (A_exec,B_exec) if a_votes>b_votes else (B_exec,A_exec)
+            amount = await self.credit_ledger.get_stake(loser)
+            print(f"winner is {winner}, it got {amount/2} from {loser}")
 
         # 资金流转
         if self.credit_ledger and winner and loser:
-            amt = 10
-            # 先保证 loser 有足够credit：不够则从 stake 解锁
-            credit = await self.credit_ledger.get_account_credit(loser)                  # :contentReference[oaicite:16]{index=16}
-            if credit < amt:
-                need = amt - credit
-                staked = await self.credit_ledger.get_stake(loser)                      # :contentReference[oaicite:17]{index=17}
-                if staked > 0:
-                    await self.credit_ledger.unstake(loser, min(need, staked))          # :contentReference[oaicite:18]{index=18}
-            # 再从 loser → winner 转账
-            await self.credit_ledger.reward(loser, winner, amount=amt)                   # :contentReference[oaicite:19]{index=19}
-
+            await self.credit_ledger.transfer_half_stake(loser, winner)
         # （可选）给两位执行者基础奖励：沿用你现有 finish_score 逻辑  :contentReference[oaicite:20]{index=20}
         # 然后向用户完成原始Future：选用获胜答案或（平局时）任选其一
         final = st["A"] if (winner==A_exec or winner is None) else st["B"]
@@ -301,12 +287,9 @@ class LLMNode:
         return request
     
     def extract_vote(self, content: str) -> str:
-        # extract A or B from the content
-        if "A" in content:
-            return "A"
-        elif "B" in content:
-            return "B"
-        return "A"  # default to A if neither found
+        if 'A' in content and 'B' in content:
+            return "A" if content.rindex("A") > content.rindex("B") else "B"
+        return "A" if 'A' in content else "B" if 'B' in content else None
 
     def _calculate_reward(self, scores: List[float]) -> float:
         """Calculate the reward based on scores."""
@@ -339,12 +322,6 @@ class LLMNode:
         st = self.duel_states[duel_id]
         content_A = st["A"].model_result.get("content")
         content_B = st["B"].model_result.get("content")
-        # random generate a number 1 or 2
-        random_number = random.randint(1, 2)
-        if random_number == 1:
-            content_A = str(random.randint(1000, 9999))
-        else:
-            content_B = str(random.randint(1000, 9999))
         user_input = st["A"].user_input  # 原始输入
 
         # 采样K个评审节点
@@ -360,6 +337,7 @@ class LLMNode:
                 source_node_addr=self.communicator.address,
                 type="request",
                 is_judge_task=True,
+                duel=False,
                 user_input = self._build_judge_payload(user_input, content_A, content_B)
             ).assign_id()
             jr.add_route(self.communicator.address.to_url())  # 源头
@@ -463,6 +441,7 @@ class LLMNode:
             duel_id = self.judge_dict[request.model_request_id]
             # print(f"[{self.node_id}  ] {request.user_input}")
             # print(f"[{self.node_id}  ] Received judge response {request.model_result.get('content')} for duel {duel_id}")
+            print('result of the judge:', request.model_result.get('content'))
             vote = self.extract_vote(request.model_result.get("content", ""))
             # 找到其所属duel
             # 可以把 duel_id 放在 judge_payload 里，或用请求ID->duel_id映射，这里假设放在 payload
@@ -657,48 +636,48 @@ class LLMNode:
                 await asyncio.sleep(1)
 
 
-    # async def _debug_print_loop(self):
-    #     """
-    #     Periodically print:
-    #       - Local aggregated usage (avg token usage, running, queue).
-    #       - Separate lengths of user and peer queues.
-    #       - This node's credit and stake.
-    #       - Top-K stakes across the ledger (optional).
-    #     """
-    #     while True:
-    #         try:
-    #             await asyncio.sleep(5)
+    async def _debug_print_loop(self):
+        """
+        Periodically print:
+          - Local aggregated usage (avg token usage, running, queue).
+          - Separate lengths of user and peer queues.
+          - This node's credit and stake.
+          - Top-K stakes across the ledger (optional).
+        """
+        while True:
+            try:
+                await asyncio.sleep(5)
 
-    #             # 1) Local load snapshot
-    #             load = self._aggregate_load()
-    #             avg_usage = load["avg_token_usage"]
-    #             running = load["running"]
-    #             total_q = load["total_queue"]
+                # 1) Local load snapshot
+                load = self._aggregate_load()
+                avg_usage = load["avg_token_usage"]
+                running = load["running"]
+                total_q = load["total_queue"]
 
-    #             # 2) Separate queue lengths from RequestManager
-    #             user_q_len = self.request_manager.user_request_queue.qsize()
-    #             peer_q_len = self.request_manager.node_request_queue.qsize()
+                # 2) Separate queue lengths from RequestManager
+                user_q_len = self.request_manager.user_request_queue.qsize()
+                peer_q_len = self.request_manager.node_request_queue.qsize()
 
-    #             # 3) Local credit/stake snapshot
-    #             credit = staked = 0.0
-    #             if self.credit_ledger:
-    #                 credit = await self.credit_ledger.get_account_credit(self.node_id)
-    #                 staked = await self.credit_ledger.get_stake(self.node_id)
-    #             # 4) Optional: global ledger snapshot (top-K by stake)
-    #             topk_str = "n/a"
-    #             if self.credit_ledger:
-    #                 all_stakes = await self.credit_ledger.get_all_stakes()
-    #                 if all_stakes:
-    #                     top_items = sorted(all_stakes.items(), key=lambda x: x[1], reverse=True)[:5]
-    #                     topk_str = ",".join(f"{nid}:{stake:.2f}" for nid, stake in top_items)
+                # 3) Local credit/stake snapshot
+                credit = staked = 0.0
+                if self.credit_ledger:
+                    credit = await self.credit_ledger.get_account_credit(self.node_id)
+                    staked = await self.credit_ledger.get_stake(self.node_id)
+                # 4) Optional: global ledger snapshot (top-K by stake)
+                topk_str = "n/a"
+                if self.credit_ledger:
+                    all_stakes = await self.credit_ledger.get_all_stakes()
+                    if all_stakes:
+                        top_items = sorted(all_stakes.items(), key=lambda x: x[1], reverse=True)[:5]
+                        topk_str = ",".join(f"{nid}:{stake:.2f}" for nid, stake in top_items)
 
-    #             # 5) Print everything in one line
-    #             print(
-    #                 f"[{self.node_id}] usage={avg_usage:.2f} running={running} "
-    #                 f"queue_total={total_q} user_q={user_q_len} peer_q={peer_q_len} "
-    #                 f"credit={credit:.2f} staked={staked:.2f} | top{5}={topk_str}"
-    #             )
+                # 5) Print everything in one line
+                print(
+                    f"[{self.node_id}] usage={avg_usage:.2f} running={running} "
+                    f"queue_total={total_q} user_q={user_q_len} peer_q={peer_q_len} "
+                    f"credit={credit:.2f} staked={staked:.2f} | top{5}={topk_str}"
+                )
 
-    #         except Exception as e:
-    #             print(f"[{self.node_id}] Error in telemetry loop: {e}")
-    #             await asyncio.sleep(1)
+            except Exception as e:
+                print(f"[{self.node_id}] Error in telemetry loop: {e}")
+                await asyncio.sleep(1)

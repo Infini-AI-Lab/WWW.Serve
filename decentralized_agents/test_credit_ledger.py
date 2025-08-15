@@ -64,8 +64,8 @@ class TestCreditLedger:
         """Unstake: move 'amount' from staked -> credit."""
         if amount <= 0:
             return True
-        async with self.stakes_lock.writer_lock:
-            async with self.accounts_lock.writer_lock:
+        async with self.accounts_lock.writer_lock:
+            async with self.stakes_lock.writer_lock:
                 account = self.accounts.get(node_id)
                 if not account or account.staked < amount:
                     return False
@@ -106,6 +106,17 @@ class TestCreditLedger:
         rng = random.Random(seed_int)
 
         return rng.choices(node_ids, weights=weights, k=k)
+    
+    async def transfer_half_stake(self, from_id: str, to_id: str) -> bool:
+        async with self.accounts_lock.writer_lock:
+            async with self.stakes_lock.writer_lock:
+                from_stake = self.stakes.get(from_id, 0.0)
+                if from_stake == 0:
+                    return False
+                half_stake = from_stake / 2
+                self.accounts[from_id].staked -= half_stake
+            self.accounts[to_id].credit += half_stake
+        return True
 
 
     # async def auto_stake_loop(self):

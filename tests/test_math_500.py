@@ -114,7 +114,7 @@ async def main():
 
     tasks = []
 
-    data = data[:20]
+    data = data[:60]
 
     for idx, item in enumerate(data):
         node = nodes[idx % len(nodes)]

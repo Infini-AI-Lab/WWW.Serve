@@ -15,7 +15,7 @@ TARGET_TOKEN_USAGE = 0.5
 MIN_REQUESTS_PER_WINDOW = 0
 MAX_REQUESTS_PER_WINDOW = 5
 
-DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
+DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
 
 
 
@@ -112,7 +112,7 @@ class ModelManager:
             response = {
                 "source_node": request.source_node_addr.node_id,
                 "executor_node": self.node.node_id,
-                "content": "Simulated response.",
+                "content": "Simulated response. A",
                 "meta_data": {
                     "finish_reason": "Simulated",
                     "usage": {
