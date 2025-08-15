@@ -115,6 +115,7 @@ class TestCreditLedger:
                     return False
                 half_stake = from_stake / 2
                 self.accounts[from_id].staked -= half_stake
+                self.stakes[from_id] -= half_stake
             self.accounts[to_id].credit += half_stake
         return True
 
