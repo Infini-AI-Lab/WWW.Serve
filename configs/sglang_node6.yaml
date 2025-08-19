@@ -15,7 +15,7 @@ ledger_params:
   initial_staked: 0
 
 models:
-  - model_path: Qwen/Qwen3-4B
+  - model_path: Qwen/Qwen3-0.6B
     base_url: http://172.19.136.149:30005
     api_key: None
 

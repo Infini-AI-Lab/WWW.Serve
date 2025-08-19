@@ -162,7 +162,7 @@ async def main():
     tasks = []
 
     data = data + data + data + data
-    #submit 4 tasks every 10 seconds
+    #submit 4 tasks every 6 seconds
     
     for idx, item in enumerate(data):
         delay = (idx // 4) * 6

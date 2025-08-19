@@ -572,35 +572,17 @@ class LLMNode:
         #     return await self.policy.dispatch_policy.dispatch(self, request, source)
 
         # 1. Local model selection
-        if(self.node_id == 'node7'):
-            print(f"stage dispatch 1")
         selected_model = self.select_local_idle_model()
-        if(self.node_id == 'node7'):
-            print(f"stage dispatch 2")
         if selected_model:
-            if self.node_id == 'node7':
-                print(f"stage dispatch 3")
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        if self.node_id == 'node7':
-            print(f"stage dispatch 4")
         if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
-            if self.node_id == 'node7':
-                print(f"stage dispatch 5")
             target_node_list = await self.credit_ledger.select_node_by_pos_no_dup(self_node_id=self.node_id, seed=request.user_input, k=3)
             # print("target_node_list:", target_node_list)
-            if self.node_id == 'node7':
-                print(f"stage dispatch 6")
             if target_node_list:
-                if self.node_id == 'node7':
-                    print(f"stage dispatch 7")
                 target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
-                if self.node_id == 'node7':
-                    print(f"stage dispatch 8")
                 if target_node_id:
-                    if self.node_id == 'node7':
-                        print(f"stage dispatch 9")
                     return target_node_id, None
 
         # 3. Fallback to local model selection for queuing
@@ -645,46 +627,22 @@ class LLMNode:
         while True:
             try:
                 await asyncio.sleep(0.5)
-                if self.node_id == 'node7':
-                    print(f"stage 1")
                 request, source = await self.request_manager.fetch_one_request()
-                if self.node_id == 'node7':
-                    print(f"stage 2")
                 selected_node_id, selected_model = await self._dispatch_one_request(request, source)
-                if self.node_id == 'node7':
-                    print(f"stage 3")
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
                     # await asyncio.sleep(1)
-                    if self.node_id == 'node7':
-                        print(f"stage 5")
                     continue
-                if self.node_id == 'node7':
-                    print(f"stage 6")
                 if selected_node_id == self.node_id:
-                    if self.node_id == 'node7':
-                        print(f"stage 7")
                     print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
                     self.create_task(self.models.inference_request(selected_model, request))
                 else:
-                    if self.node_id == 'node7':
-                        print(f"stage 8")
                     if await self._maybe_start_duel(request, source):
-                        if self.node_id == 'node7':
-                            print(f"stage 9")
                         continue
-                    if self.node_id == 'node7':
-                        print(f"stage 10")
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-                    if self.node_id == 'node7':
-                        print(f"stage 11")
                     self.send_to[request.model_request_id] = (selected_node_id, request, source)
-                    if self.node_id == 'node7':
-                        print(f"stage 12")
                     self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
-                    if self.node_id == 'node7':
-                        print(f"stage 13")
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
