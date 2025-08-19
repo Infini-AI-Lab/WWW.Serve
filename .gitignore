@@ -194,7 +194,10 @@ cython_debug/
 .cursorindexingignore
 
 
-datasets/
+datasets/*.json
+datasets/math500/math10.json
+datasets/*.csv
+
 # configs/
 scripts/
 models/
