@@ -147,7 +147,7 @@ class ModelManager:
                     },
                     temperature = gen_params.get("temperature", 0.6),
                     top_p = gen_params.get("top_p", 0.95),
-                    max_tokens = gen_params.get("max_tokens", 256)
+                    max_tokens = gen_params.get("max_tokens", 8192)
                 )
                 request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 

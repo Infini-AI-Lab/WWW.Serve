@@ -20,18 +20,21 @@ class TestCreditLedger:
         async with self.accounts_lock.writer_lock:
             if node_id not in self.accounts:
                 self.accounts[node_id] = CreditAccount(node_id=node_id, credit=initial_credit, staked=initial_staked)
-                async with self.stakes_lock.writer_lock:
-                    self.stakes[node_id] = self.accounts[node_id].staked
+            else:
                 return True
-            return False
+        async with self.stakes_lock.writer_lock:
+            self.stakes[node_id] = self.accounts[node_id].staked
+        return True
     
 
     async def delete_account(self, node_id: str):
         async with self.accounts_lock.writer_lock:
             if node_id in self.accounts:
                 del self.accounts[node_id]
-                async with self.stakes_lock.writer_lock:
-                    del self.stakes[node_id]
+            else:
+                return
+        async with self.stakes_lock.writer_lock:
+            del self.stakes[node_id]
 
 
     async def get_account_credit(self, node_id: str) -> float:
@@ -49,41 +52,44 @@ class TestCreditLedger:
             return self.stakes.copy()
 
     async def stake(self, node_id: str, amount: float) -> bool:
+        async with self.accounts_lock.reader_lock:
+            account = self.accounts.get(node_id)
+            if not account or account.credit < amount:
+                return False
         async with self.stakes_lock.writer_lock:
-            async with self.accounts_lock.writer_lock:
-                account = self.accounts.get(node_id)
-                if not account or account.credit < amount:
-                    return False
-                self.stakes[node_id] += amount
-                account.credit -= amount
-                account.staked += amount
-                return True
+            self.stakes[node_id] += amount
+        async with self.accounts_lock.writer_lock:
+            account.credit -= amount
+            account.staked += amount
+        return True
 
 
     async def unstake(self, node_id: str, amount: float) -> bool:
         """Unstake: move 'amount' from staked -> credit."""
         if amount <= 0:
             return True
+        async with self.accounts_lock.reader_lock:
+            account = self.accounts.get(node_id)
+            if not account or account.staked < amount:
+                return False
         async with self.stakes_lock.writer_lock:
-            async with self.accounts_lock.writer_lock:
-                account = self.accounts.get(node_id)
-                if not account or account.staked < amount:
-                    return False
-                self.stakes[node_id] -= amount
-                account.staked -= amount
-                account.credit += amount
-                return True
+            self.stakes[node_id] -= amount
+        async with self.accounts_lock.writer_lock:
+            account.staked -= amount
+            account.credit += amount
+        return True
 
 
     async def reward(self, from_id: str, to_id: str, amount: float) -> bool:
-        async with self.accounts_lock.writer_lock:
+        async with self.accounts_lock.reader_lock:
             from_account = self.accounts.get(from_id)
             to_account = self.accounts.get(to_id)
             if not from_account or not to_account or from_account.credit < amount:
                 return False
+        async with self.accounts_lock.writer_lock:
             from_account.credit -= amount
             to_account.credit += amount
-            return True
+        return True
 
 
     async def select_node_by_pos(self, self_node_id: str, seed: str, k = 3) -> List[str]:

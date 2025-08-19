@@ -200,6 +200,7 @@ scripts/
 models/
 results/
 azure_dataset/*.csv
+pdfs/
 
 tests/test.py
 tests/visualize_time.py

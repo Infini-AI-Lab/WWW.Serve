@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 3000       # Default timeout for user requests (s)
+DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
 MAX_QUEUE_REQS = 10
 IDLE_USAGE_THRESHOLD = 0.5
 
