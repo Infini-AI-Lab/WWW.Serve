@@ -42,3 +42,5 @@ Two CSV files recording the run will be created in `datasets/` automatically:
 
 * `credit_timeseries_final.csv`
 * `duel_stats_final.csv`
+
+please delete them or change their name whenever you test it again.
