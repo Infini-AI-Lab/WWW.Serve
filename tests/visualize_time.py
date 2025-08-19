@@ -46,41 +46,43 @@ def get_latency(json_path):
         data = json.load(f)
 
     latency_list = []
+    executor_list = []
     error_idx = set()
     for idx, item in enumerate(data):
-        if item["response"]["meta_data"]["finish_reason"] != "stop":
+        if item["response"]["meta_data"]["finish_reason"] == "TIMEOUT":
             error_idx.add(idx)
+            continue
         latency = item["timestamp_list"][-1] - item["timestamp_list"][0]
         latency_list.append(latency)
+        executor_list.append(item["response"]["executor_node"])
 
-    return latency_list, error_idx
+    return latency_list, executor_list, error_idx
 
 
-# json_path_single = "/home/hywang/Reasoning/Decentralized-Agents/results/test18/test_18_result.json"
-json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_result.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test21/test_21_result.json"
 
-# latency_single, err_set_single = get_latency(json_path_single)
-latency_network, err_set_network = get_latency(json_path_network)
+latency_network, executor_list, err_set_network = get_latency(json_path_network)
 
-# print(len(latency_single), len(latency_network))
-
-# n = len(latency_single)
 n = len(latency_network)
 idx = np.arange(n)
-bar_width = 0.4
 
-plt.figure(figsize=(12, 6))
+colors = {
+    "node1": "#A0A0A0",  # 浅灰
+    "node2": "#7FB0C0",  # 浅灰蓝
+    "node3": "#B0C070",  # 浅灰绿
+    "node4": "#D95F02"   # 暖橙，重点
+}
 
-# plt.bar(idx - bar_width/2, latency_single, width=bar_width, 
-#         label="Single", color="#1f77b4", alpha=0.8)
 
-plt.bar(idx + bar_width/2, latency_network, width=bar_width, 
-        label="DeServe", color="#ff7f0e", alpha=0.8)
 
-plt.xlabel("Requests")
-plt.ylabel("Latency (s)")
+plt.figure(figsize=(8, 6))
+
+for i, (req_id, lat, node) in enumerate(zip(idx, latency_network, executor_list)):
+    plt.bar(req_id, lat, color=colors[node], label=f"Node {node[-1]}" if i == executor_list.index(node) else "", width=0.7)
+
 plt.legend()
-plt.grid(axis="y", linestyle="--", alpha=0.7)
-
-plt.tight_layout()
-plt.savefig("time.png")
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.xlabel("Request Index", fontsize=16)
+plt.ylabel("Latency (s)", fontsize=16)
+plt.savefig("time.pdf", dpi=300)

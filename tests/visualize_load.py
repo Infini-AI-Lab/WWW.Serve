@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-single_node_json_1 = "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_4.json"
+# single_node_json_1 = "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_4.json"
 # network_node_json_1 = "/home/hywang/Reasoning/Decentralized-Agents/results/test13/test_13_node_1.json"
 
 # single_node_json_3 = "/home/hywang/Reasoning/Decentralized-Agents/results/test14/test_14_node_3.json"
@@ -12,7 +12,8 @@ single_node_json_1 = "/home/hywang/Reasoning/Decentralized-Agents/results/test23
 other_nodes_json = [
     "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_1.json",
     "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_2.json",
-    "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_3.json"
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_3.json",
+    "/home/hywang/Reasoning/Decentralized-Agents/results/test23/test_23_node_4.json"
 ]
 
 
@@ -35,7 +36,7 @@ def load_model_data(file_path):
     return time, running, token
 
 
-time_single_1, running_single_1, token_single_1 = load_model_data(single_node_json_1)
+# time_single_1, running_single_1, token_single_1 = load_model_data(single_node_json_1)
 # time_single_1 = [t + 150 for t in time_single_1]
 # time_single_3, running_single_3, token_single_3 = load_model_data(single_node_json_3)
 # time_network_1, running_network_1, token_network_1 = load_model_data(network_node_json_1)
@@ -55,44 +56,53 @@ time_single_1, running_single_1, token_single_1 = load_model_data(single_node_js
 other_times = []
 other_runnings = []
 other_tokens = []
-for f in other_nodes_json:
+for idx, f in enumerate(other_nodes_json):
     t, r, token = load_model_data(f)
+    # if idx == 3:
+    #     t = [time + 180 for time in t]
     other_times.append(t)
     other_runnings.append(r)
     other_tokens.append(token)
 
 
-plt.figure(figsize=(6,4))
+# plt.figure(figsize=(8,6))
 
-colors = ["#5A9BD5", "#ED7D31", "#70AD47"]
+# colors = ["#5A9BD5", "#ED7D31", "#70AD47"]
+colors = ["#b0b0b0", "#8da0cb", "#a6d854", "#7030A0"]
 # colors = ["#5A9BD5", "#E38BB1"]
-for (t, r), c in zip(zip(other_times, other_runnings), colors):
-    plt.plot(t, r, color=c, linewidth=1.0, linestyle='-')
+# for (t, r), c in zip(zip(other_times, other_runnings), colors):
+#     if c == "#7030A0":
+#         plt.plot(t, r, color=c, linewidth=1.5, linestyle='-')
+#     else:
+#         plt.plot(t, r, color=c, linewidth=1.0, linestyle='-')
 
-plt.plot(time_single_1, running_single_1, linestyle='-', linewidth=2.0, marker='s', color="#7030A0", markersize=0) # Single
+# plt.plot(time_single_1, running_single_1, linestyle='-', linewidth=2.0, marker='s', color="#7030A0", markersize=0) # Single
 # plt.plot(time_network_1, running_network_1, linestyle='-', linewidth=2.0, marker='o', color="#008080", markersize=0) # Network
 
 # plt.plot(time_single_3, running_single_3, linestyle='-', linewidth=2.0, marker='s', color="#2E4053", markersize=0) # Single
 # plt.plot(time_network_3, running_network_3, linestyle='-', linewidth=2.0, marker='o', color="#D35400", markersize=0) # Network
 
 
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
-plt.xlabel("Time (s)", fontsize=16)
-plt.ylabel("Number of Running Requests", fontsize=16)
-plt.grid(True, linestyle=':', linewidth=1.5, alpha=0.8)
-plt.tight_layout()
-plt.savefig("dispatch_3_2_2.pdf", dpi=300)
+# plt.xticks(fontsize=12)
+# plt.yticks(fontsize=12)
+# plt.xlabel("Time (s)", fontsize=16)
+# plt.ylabel("Number of Running Requests", fontsize=16)
+# plt.grid(True, linestyle=':', linewidth=1.5, alpha=0.8)
+# plt.tight_layout()
+# plt.savefig("dispatch_3_2_2.pdf", dpi=300)
 
 
 
 
-plt.figure(figsize=(6,4))
+plt.figure(figsize=(8,6))
 
 for (t, r), c in zip(zip(other_times, other_tokens), colors):
-    plt.plot(t, r, color=c, linewidth=1.0, linestyle='-')
+    if c == "#7030A0":
+        plt.plot(t, r, color=c, linewidth=1.5, linestyle='-')
+    else:
+        plt.plot(t, r, color=c, linewidth=1.0, linestyle='-')
 
-plt.plot(time_single_1, token_single_1, linestyle='-', linewidth=2.0, marker='s', color="#7030A0", markersize=0) # Single
+# plt.plot(time_single_1, token_single_1, linestyle='-', linewidth=2.0, marker='s', color="#7030A0", markersize=0) # Single
 # plt.plot(time_network_1, token_network_1, linestyle='-', linewidth=2.0, marker='o', color="#008080", markersize=0) # Network
 
 # plt.plot(time_single_3, token_single_3, linestyle='-', linewidth=2.0, marker='s', color="#2E4053", markersize=0) # Single
@@ -105,7 +115,7 @@ plt.xlabel("Time (s)", fontsize=16)
 plt.ylabel("Token Usage (%)", fontsize=16)
 plt.grid(True, linestyle=':', linewidth=1.5, alpha=0.8)
 plt.tight_layout()
-plt.savefig("dispatch_3_3_2.pdf", dpi=300)
+plt.savefig("leave_2.pdf", dpi=300)
 
 
 

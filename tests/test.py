@@ -96,7 +96,7 @@ async def main():
 
     node1_times = poisson_time_list(rate=0.5, start_time=0, end_time=300)
     # asyncio.create_task(node_start_join(node4, node1.communicator.address.to_url(), delay=150))
-    asyncio.create_task(node_offline(node4, delay=210))
+    # asyncio.create_task(node_offline(node4, delay=210))
 
     tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
             # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
@@ -106,7 +106,7 @@ async def main():
 
     all_results = await asyncio.gather(*tasks)
 
-    with open("results/test_23_result.json", "w", encoding="utf-8") as f:
+    with open("results/test_24_result.json", "w", encoding="utf-8") as f:
         json.dump(
             all_results,
             f,
@@ -115,7 +115,7 @@ async def main():
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"results/test_23_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"results/test_24_node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,

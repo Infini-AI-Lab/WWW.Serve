@@ -389,7 +389,7 @@ class LLMNode:
             try:
                 await self.communicator.gossip_probe()
                 await self.models.update_server_stats()
-                await self._auto_adjust_stake()
+                # await self._auto_adjust_stake()
                 await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
             
             except Exception as e:
