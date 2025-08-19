@@ -15,15 +15,16 @@ TARGET_TOKEN_USAGE = 0.5
 MIN_REQUESTS_PER_WINDOW = 0
 MAX_REQUESTS_PER_WINDOW = 5
 
-DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
+# DEBUG_MODE = True  # If True, simulate model responses instead of calling actual servers.
 
 
 
 class ModelManager:
     """Manager for handling model servers."""
 
-    def __init__(self, node: "LLMNode", models_config):
+    def __init__(self, node: "LLMNode", models_config, test = False):
         self.node = node
+        self.test = test
 
         self.clients: Dict[str, Union[AsyncOpenAI, None]] = {}
         self.gen_params: Dict[str, Dict] = {}
@@ -95,24 +96,26 @@ class ModelManager:
         return True
 
 
-    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = False):
+    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = True):
         """Inferencing user input with the specified model."""
         self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
 
-        if DEBUG_MODE:
+        if self.test:
             request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
             simu_prompt_token = random.randint(10, 100)
             if request.generate_token_length is None:
                 simu_completion_token = random.randint(1, 32768)
+                # generate a random number:
+                output = random.randint(1, 1000000)
             else:
                 simu_completion_token = request.generate_token_length
             response = {
                 "source_node": request.source_node_addr.node_id,
                 "executor_node": self.node.node_id,
-                "content": "Simulated response. A",
+                "content": str(output),
                 "meta_data": {
                     "finish_reason": "Simulated",
                     "usage": {
@@ -203,7 +206,7 @@ class ModelManager:
                     "timestamp": time.time(),
                     **self.server_stats[model_path].copy()
                 })
-                print(f"[{self.node.node_id}  ] Updated metrics: {self.server_stats[model_path]}")
+                # print(f"[{self.node.node_id}  ] Updated metrics: {self.server_stats[model_path]}")
 
             except Exception as e:
                 print(f"[{self.node.node_id}  ] Failed to update metrics for {model_path}: {e}")

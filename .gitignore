@@ -209,3 +209,5 @@ tests/*.png
 examples/agent_chat.py
 
 *.png
+plot/
+*.pdf

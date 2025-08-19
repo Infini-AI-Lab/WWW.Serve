@@ -24,13 +24,14 @@ DEFAULT_REQUEST_TIMEOUT = 3000       # Default timeout for user requests (s)
 MAX_QUEUE_REQS = 10
 IDLE_USAGE_THRESHOLD = 0.5
 P_INSPECT = 0.2
-K_JUDGES = 1
+K_JUDGES = 3
 
 
 class LLMNode:
     def __init__(self,
                  node_id: str,
                  config_path: Union[Path, str],
+                 test: bool = False,
                  ):
         self.node_id = node_id
 
@@ -43,6 +44,8 @@ class LLMNode:
         self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
         self._tasks: Set[asyncio.Task] = set()
+        self.duel_settle_locks: Dict[str, asyncio.Lock] = {}
+        self.judge_length = int(self.config["models"][0]["gen_params"]["max_tokens"]*1.2)
 
         self.communicator = ZmqCommunicator(
             node=self,
@@ -52,6 +55,7 @@ class LLMNode:
         self.models = ModelManager(
             node=self,
             models_config=self.config["models"],
+            test=test,
         )
         self.request_manager = RequestManager(
             node=self,
@@ -77,9 +81,9 @@ class LLMNode:
     
 
     @classmethod
-    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger" = None):
+    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger" = None, test: bool = False):
         """Initialize the LLMNode with the given configuration."""
-        node = cls(node_id=node_id, config_path=config_path)
+        node = cls(node_id=node_id, config_path=config_path, test=test)
         if ledger:
             node.credit_ledger = ledger
             await node.credit_ledger.create_account(
@@ -172,17 +176,19 @@ class LLMNode:
         else:
             print(f"[{self.node_id}  ] Future for request {request_id} not found.")
 
-    def _build_judge_payload(self, user_input, content_A, content_B):
+    def _build_judge_payload(self, user_input, content_A, content_B, max_length_percontent: int = 49152):
+        content_A = content_A[:max_length_percontent]
+        content_B = content_B[:max_length_percontent]
         prompt = (
             "你是一个审慎、严厉的评审官。你的任务是从下面两个回答中选择更优的一个，判断标准包括：\n"
             "1. 回答是否正确\n"
             "2. 回答是否完整\n"
             "3. 回答是否严格遵循指令\n\n"
-            "请严格按照以下格式作答：只能输出一个字母 A 或 B，不能有其他内容，不能解释原因，不能添加任何说明。\n\n"
+            "请严格按照以下格式作答：只能输出一个字母 A 或 B；若无法区分则输出#。不能有其他内容，不能解释原因，不能添加任何说明。\n\n"
             f"【问题】：{user_input}\n\n"
             f"回答A：\n{content_A}\n\n"
             f"回答B：\n{content_B}\n\n"
-            "请直接给出你的选择,只能输出一个字母 A 或 B，不能有其他内容，不能解释原因，不能添加任何说明。"
+            "请直接给出你的选择：只能输出 A 或 B；若无法区分则输出#。"
         )
 
         return prompt
@@ -191,7 +197,9 @@ class LLMNode:
     async def _settle_duel(self, duel_id: str):
         print("_______________length:", len(self.duel_states))
         print("_______________st[votes]:", self.duel_states[duel_id]["votes"])
+        self.duel_settle_locks.pop(duel_id, None)
         st = self.duel_states.pop(duel_id, None)
+        
         if not st: return
         A_exec = st["A"].executor_node_id
         B_exec = st["B"].executor_node_id
@@ -201,16 +209,29 @@ class LLMNode:
         b_votes = sum(1 for _,v in st["votes"] if v=="B")
         print(f"[{self.node_id}  ] Duel {duel_id} votes: A={a_votes}, B={b_votes}")
         if a_votes==b_votes:
-            # 平局：可直接平均奖励/不转移stake
             winner, loser = None, None
+            # participants are the nodes that judge the result
+            participants = [nid for nid,v in st["votes"] if v=="A" or v=="B"]
+            non_participants = [nid for nid,v in st["votes"] if v==None]
+            print(f"[{self.node_id}  ] Duel {duel_id} is tied. Participants: {participants}, Non-participants: {non_participants}")
+            await self.credit_ledger.judge_transfer_tied(participants=participants, non_participants=non_participants)
         else:
             winner, loser = (A_exec,B_exec) if a_votes>b_votes else (B_exec,A_exec)
+            correct = "A" if a_votes > b_votes else "B"
+            majority = [nid for nid,v in st["votes"] if v==correct]
+            minority = [nid for nid,v in st["votes"] if v!=correct and v is not None]
+            non_participants = [nid for nid,v in st["votes"] if v is None]
+            print(f"[{self.node_id}  ] Duel {duel_id} . majority: {majority}, minority: {minority}, non-participants: {non_participants}")
+            await self.credit_ledger.judge_transfer(majority=majority, minority=minority, non_participants=non_participants)
+            
             amount = await self.credit_ledger.get_stake(loser)
             print(f"winner is {winner}, it got {amount/2} from {loser}")
 
         # 资金流转
         if self.credit_ledger and winner and loser:
-            await self.credit_ledger.transfer_half_stake(loser, winner)
+            await self.credit_ledger.transfer_all_stake(loser, winner)
+        else: 
+            await self.credit_ledger.transfer_nothing(A_exec, B_exec)
         # （可选）给两位执行者基础奖励：沿用你现有 finish_score 逻辑  :contentReference[oaicite:20]{index=20}
         # 然后向用户完成原始Future：选用获胜答案或（平局时）任选其一
         final = st["A"] if (winner==A_exec or winner is None) else st["B"]
@@ -287,6 +308,8 @@ class LLMNode:
         return request
     
     def extract_vote(self, content: str) -> str:
+        if '#' in content[-5:]:
+            return None
         if 'A' in content and 'B' in content:
             return "A" if content.rindex("A") > content.rindex("B") else "B"
         return "A" if 'A' in content else "B" if 'B' in content else None
@@ -325,8 +348,8 @@ class LLMNode:
         user_input = st["A"].user_input  # 原始输入
 
         # 采样K个评审节点
-        candidates = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=str(duel_id), k=K_JUDGES+3)  # 预多采样
         exclude = {st["A"].executor_node_id, st["B"].executor_node_id, self.node_id}
+        candidates = await self.credit_ledger.select_node_by_pos_no_dup(self_node_id=self.node_id, seed=str(duel_id), k=K_JUDGES+2, exclude=exclude)  # 预多采样
         judges = [nid for nid in candidates if nid not in exclude][:K_JUDGES]
         st["judges"] = judges
 
@@ -338,7 +361,7 @@ class LLMNode:
                 type="request",
                 is_judge_task=True,
                 duel=False,
-                user_input = self._build_judge_payload(user_input, content_A, content_B)
+                user_input = self._build_judge_payload(user_input, content_A, content_B, max_length_percontent=self.judge_length)
             ).assign_id()
             jr.add_route(self.communicator.address.to_url())  # 源头
             # 直接路由给评审节点
@@ -384,21 +407,20 @@ class LLMNode:
             "judges": [], "votes": [], "source": source,
             "start_ts": time.time()
         })
+        self.duel_settle_locks.setdefault(duel_id, asyncio.Lock())
         # print(f"[{self.node_id}  ] Duel {duel_id} state initialized with orig_req_id {req.model_request_id}")
         # 发出A
-        # print(f"[{self.node_id}  ] Sending duel requests {reqA.model_request_id} to {nodeA} and {reqB.model_request_id} to {nodeB}")
         await self.communicator.prepare_and_send_request(payload=reqA, type="ModelRequest", target_id=nodeA)
         self.send_to[reqA.model_request_id] = (nodeA, reqA, "node")
         self.dispatching_requests.setdefault(nodeA, set()).add(reqA.model_request_id)
 
         # 发出B
-        print(f"[{self.node_id}  ] Sending duel requests {reqA.model_request_id} to {nodeA} and {reqB.model_request_id} to {nodeB}")
         await self.communicator.prepare_and_send_request(payload=reqB, type="ModelRequest", target_id=nodeB)
         self.send_to[reqB.model_request_id] = (nodeB, reqB, "node")
         self.dispatching_requests.setdefault(nodeB, set()).add(reqB.model_request_id)
-        
+
         print(f"[{self.node_id}  ] Duel requests {reqA.model_request_id} (A) sent to {nodeA}, {reqB.model_request_id} (B) sent to {nodeB}")
-        print(f"________________________________duel_states length:", len(self.duel_states))
+        print(f"____________________duel_states length increase, now:", len(self.duel_states), ",duel_dictlens", len(self.duel_dict), ",duel_settle_locks", len(self.duel_settle_locks), ",judge_dict", len(self.judge_dict))
 
         return True
 
@@ -421,7 +443,7 @@ class LLMNode:
             self.dispatching_requests[send_to].discard(request.model_request_id)
 
         if request.model_request_id in self.duel_dict:
-            duel_id, role = self.duel_dict[request.model_request_id]
+            duel_id, role = self.duel_dict.pop(request.model_request_id, (None, None))
 
             print(f"[{self.node_id}  ] Received duel response {request.model_request_id} for duel {duel_id}")
             st = self.duel_states.get(duel_id)
@@ -438,7 +460,7 @@ class LLMNode:
 
         if request.model_request_id in self.judge_dict:
             # 解析 A/B
-            duel_id = self.judge_dict[request.model_request_id]
+            duel_id = self.judge_dict.pop(request.model_request_id, None)
             # print(f"[{self.node_id}  ] {request.user_input}")
             # print(f"[{self.node_id}  ] Received judge response {request.model_result.get('content')} for duel {duel_id}")
             print('result of the judge:', request.model_result.get('content'))
@@ -452,12 +474,15 @@ class LLMNode:
                 
 
             st = self.duel_states[duel_id]
-            st["votes"].append((request.executor_node_id, vote))  # 记录投票
             # 给评审小额补贴
             if self.credit_ledger:
                 await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)  # :contentReference[oaicite:15]{index=15}
-
-            if len(st["votes"]) >= len(st["judges"]):
+            
+            async with self.duel_settle_locks[duel_id]:
+                st["votes"].append((request.executor_node_id, vote))  # 记录投票
+                st_length = len(st["votes"])
+            print(f"[{self.node_id}  ] Duel {duel_id} received vote {vote} from judge {request.executor_node_id}. Total votes: {st_length}/{len(st['judges'])}")
+            if st_length >= len(st["judges"]):
                 await self._settle_duel(duel_id)
             return
     
@@ -467,7 +492,7 @@ class LLMNode:
             # Reward the executor node if it's not the current node
             if self.credit_ledger and request.executor_node_id != self.node_id:
                 # await self.credit_ledger.reward(request.executor_node_id, amount=1)
-                reward_amount = self._calculate_reward(request.result_scores)
+                reward_amount = 0
                 print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
                 await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=reward_amount)
 
@@ -515,7 +540,8 @@ class LLMNode:
         avg_usage = load["avg_token_usage"]  # Range: 0~1
 
         # 2) Calculate target stake within limits
-        target = 100 * max((IDLE_USAGE_THRESHOLD - avg_usage) / IDLE_USAGE_THRESHOLD, 0.0)
+        # target = 100 * max((IDLE_USAGE_THRESHOLD - avg_usage) / IDLE_USAGE_THRESHOLD, 0.0)
+        target = 15
 
         # 3) Get current stake and available credit
         cur_stake = await self.credit_ledger.get_stake(self.node_id)
@@ -546,16 +572,35 @@ class LLMNode:
         #     return await self.policy.dispatch_policy.dispatch(self, request, source)
 
         # 1. Local model selection
+        if(self.node_id == 'node7'):
+            print(f"stage dispatch 1")
         selected_model = self.select_local_idle_model()
+        if(self.node_id == 'node7'):
+            print(f"stage dispatch 2")
         if selected_model:
+            if self.node_id == 'node7':
+                print(f"stage dispatch 3")
             return self.node_id, selected_model
 
         # 2. Credit-based routing
+        if self.node_id == 'node7':
+            print(f"stage dispatch 4")
         if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
-            target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input, k=5)
+            if self.node_id == 'node7':
+                print(f"stage dispatch 5")
+            target_node_list = await self.credit_ledger.select_node_by_pos_no_dup(self_node_id=self.node_id, seed=request.user_input, k=3)
+            # print("target_node_list:", target_node_list)
+            if self.node_id == 'node7':
+                print(f"stage dispatch 6")
             if target_node_list:
+                if self.node_id == 'node7':
+                    print(f"stage dispatch 7")
                 target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
+                if self.node_id == 'node7':
+                    print(f"stage dispatch 8")
                 if target_node_id:
+                    if self.node_id == 'node7':
+                        print(f"stage dispatch 9")
                     return target_node_id, None
 
         # 3. Fallback to local model selection for queuing
@@ -571,6 +616,7 @@ class LLMNode:
 
         if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
             target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input, k=5)
+            # print("target_node_list for duel:", target_node_list)
             if target_node_list:
                 target_node_ids = await self.communicator.select_k_nodes_from_candidates(target_node_list, k=2)
                 if len(target_node_ids) == 2:
@@ -599,27 +645,46 @@ class LLMNode:
         while True:
             try:
                 await asyncio.sleep(0.5)
+                if self.node_id == 'node7':
+                    print(f"stage 1")
                 request, source = await self.request_manager.fetch_one_request()
-
+                if self.node_id == 'node7':
+                    print(f"stage 2")
                 selected_node_id, selected_model = await self._dispatch_one_request(request, source)
-
+                if self.node_id == 'node7':
+                    print(f"stage 3")
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
                     # await asyncio.sleep(1)
+                    if self.node_id == 'node7':
+                        print(f"stage 5")
                     continue
-
+                if self.node_id == 'node7':
+                    print(f"stage 6")
                 if selected_node_id == self.node_id:
+                    if self.node_id == 'node7':
+                        print(f"stage 7")
                     print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
                     self.create_task(self.models.inference_request(selected_model, request))
-
                 else:
+                    if self.node_id == 'node7':
+                        print(f"stage 8")
                     if await self._maybe_start_duel(request, source):
+                        if self.node_id == 'node7':
+                            print(f"stage 9")
                         continue
+                    if self.node_id == 'node7':
+                        print(f"stage 10")
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-
+                    if self.node_id == 'node7':
+                        print(f"stage 11")
                     self.send_to[request.model_request_id] = (selected_node_id, request, source)
+                    if self.node_id == 'node7':
+                        print(f"stage 12")
                     self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+                    if self.node_id == 'node7':
+                        print(f"stage 13")
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
@@ -647,36 +712,9 @@ class LLMNode:
         while True:
             try:
                 await asyncio.sleep(5)
-
-                # 1) Local load snapshot
-                load = self._aggregate_load()
-                avg_usage = load["avg_token_usage"]
-                running = load["running"]
-                total_q = load["total_queue"]
-
-                # 2) Separate queue lengths from RequestManager
-                user_q_len = self.request_manager.user_request_queue.qsize()
-                peer_q_len = self.request_manager.node_request_queue.qsize()
-
-                # 3) Local credit/stake snapshot
-                credit = staked = 0.0
-                if self.credit_ledger:
-                    credit = await self.credit_ledger.get_account_credit(self.node_id)
-                    staked = await self.credit_ledger.get_stake(self.node_id)
-                # 4) Optional: global ledger snapshot (top-K by stake)
-                topk_str = "n/a"
-                if self.credit_ledger:
-                    all_stakes = await self.credit_ledger.get_all_stakes()
-                    if all_stakes:
-                        top_items = sorted(all_stakes.items(), key=lambda x: x[1], reverse=True)[:5]
-                        topk_str = ",".join(f"{nid}:{stake:.2f}" for nid, stake in top_items)
-
-                # 5) Print everything in one line
-                print(
-                    f"[{self.node_id}] usage={avg_usage:.2f} running={running} "
-                    f"queue_total={total_q} user_q={user_q_len} peer_q={peer_q_len} "
-                    f"credit={credit:.2f} staked={staked:.2f} | top{5}={topk_str}"
-                )
+                # print the length of send to
+                if self.node_id == 'node7':
+                    print(f"[{self.node_id}] Current send_to length: {len(self.send_to)}")
 
             except Exception as e:
                 print(f"[{self.node_id}] Error in telemetry loop: {e}")
