@@ -93,33 +93,32 @@ async def main():
         node_id="node4",
         config_path="configs/sglang_node4.yaml",
         ledger=ledger,
-        test=True,
+        test=False,
     )
     node5 = await LLMNode.init_with_ledger(
         node_id="node5",
         config_path="configs/sglang_node5.yaml",
         ledger=ledger,
-        test=True,
+        test=False,
     )
-    # node6 = await LLMNode.init_with_ledger(
-    #     node_id="node6",
-    #     config_path="configs/sglang_node6.yaml",
-    #     ledger=ledger,
-    #     test=True,
-    # )
+    node6 = await LLMNode.init_with_ledger(
+        node_id="node6",
+        config_path="configs/sglang_node6.yaml",
+        ledger=ledger,
+        test=False,
+    )
     node7 = await LLMNode.init_with_ledger(
         node_id="node7",
         config_path="configs/sglang_node7.yaml",
         ledger=ledger,
+        test=False,
+    )
+    node8 = await LLMNode.init_with_ledger(
+        node_id="node8",
+        config_path="configs/sglang_node8.yaml",
+        ledger=ledger,
         test=True,
     )
-    # node8 = await LLMNode.init_with_ledger(
-    #     node_id="node8",
-    #     config_path="configs/sglang_node8.yaml",
-    #     ledger=ledger,
-    #     test=True,
-    # )
-    
 
 
     await asyncio.sleep(1)
@@ -134,11 +133,11 @@ async def main():
     # await asyncio.sleep(random.uniform(1, 3))
     await node5.start()
     # await asyncio.sleep(random.uniform(1, 3))
-    # await node6.start()
+    await node6.start()
     
     await node7.start()
 
-    # await node8.start()
+    await node8.start()
 
     await node2.join_network(node1.communicator.address.to_url())
     await asyncio.sleep(random.uniform(1, 3))
@@ -148,14 +147,14 @@ async def main():
     await asyncio.sleep(random.uniform(1, 3))
     await node5.join_network(node4.communicator.address.to_url())
     await asyncio.sleep(random.uniform(1, 3))
-    # await node6.join_network(node5.communicator.address.to_url())
-
-    await node7.join_network(node4.communicator.address.to_url())
-
-    # await node8.join_network(node7.communicator.address.to_url())
+    await node6.join_network(node5.communicator.address.to_url())
+    await asyncio.sleep(random.uniform(1, 3))
+    await node7.join_network(node6.communicator.address.to_url())
+    await asyncio.sleep(random.uniform(1, 3))
+    await node8.join_network(node7.communicator.address.to_url())
 
     ##### Testing code #####
-    nodes = [node1, node2, node3, node4, node5, node7]
+    nodes = [node1, node2, node3, node4, node5, node6, node7, node8]
 
     with open("datasets/math500/math500.json", "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -166,10 +165,10 @@ async def main():
     #submit 4 tasks every 10 seconds
     
     for idx, item in enumerate(data):
-        delay = (idx // 4) * 9
+        delay = (idx // 4) * 6
         delay += idx % 4
         print("submit", idx, "after", delay, "seconds")
-        tasks.append(asyncio.create_task(timed_submit(item["problem"], node7, delay=delay)))
+        tasks.append(asyncio.create_task(timed_submit(item["problem"], node8, delay=delay)))
 
 
     # create a csv file if it doesn't exist
