@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
-MAX_QUEUE_REQS = 10
-IDLE_USAGE_THRESHOLD = 0.5
+# MAX_QUEUE_REQS = 10
+DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
 
 
 class LLMNode:
@@ -36,6 +36,7 @@ class LLMNode:
         self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
         self.pending_futures: Dict[str, Tuple[asyncio.Future, asyncio.Task]] = {}  # request_id -> (future, timer)
+        self.delegate_from: Dict[str, str] = {}  # request_id -> delegate_from_url
         self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
         self._tasks: Set[asyncio.Task] = set()
@@ -103,8 +104,6 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
-        # self.create_task(self._debug_print_loop())
-
         # Credit ledger will be started in init() or init_ledger_sync()
 
 
@@ -123,21 +122,18 @@ class LLMNode:
     async def join_network(self, join_network_url: str):
         """Join the network at the specified URL."""
         await self.communicator._join_network(join_network_url)
-        print(f"[{self.node_id}  ] Joined network at {join_network_url}")
         await asyncio.sleep(3)
 
 
-    async def submit_request(self, prompt: str, generate_token_length=None):
+    async def submit_request(self, prompt: str):
         """Entrance for user to submit a request."""
         request = ModelRequest(
             source_node_addr=self.communicator.address,
             user_input=prompt,
             type="request",
-            generate_token_length=generate_token_length
+            route_path=[(self.node_id, time.time())]
         ).assign_id()
         request.timestamp_list[0] = time.time()  # Set submit timestamp
-        # TODO: not elegant!
-        request.add_route(self.communicator.address.to_url())
 
         timer = self.create_task(self._start_timeout_timer(request, timeout=DEFAULT_REQUEST_TIMEOUT))
         future = asyncio.get_running_loop().create_future()
@@ -159,7 +155,6 @@ class LLMNode:
             request.timestamp_list[3] = time.time()  # Set future resolved timestamp
             future.set_result({
                 "request_id": request_id,
-                "route_path": request.route_path,
                 "timestamp_list": request.timestamp_list,
                 "response": request.model_result
             })
@@ -198,11 +193,13 @@ class LLMNode:
 
         for request_id in list(self.dispatching_requests[node_id]):
             print(f"[{self.node_id}  ] Request {request_id} requeuing.")
-            _, request, source = self.send_to.pop(request_id, (None, None, None))
-            await self.request_manager.enque_front_request(request, queue=source)
+            send_to, request, source = self.send_to.pop(request_id, (None, None, None))
+            if send_to:
+                await self.request_manager.enque_front_request(request, queue=source)
+            else:
+                print(f"[{self.node_id}  ] No send_to info for request {request_id} when node {node_id} goes offline.")
 
         self.dispatching_requests.pop(node_id, None)
-        # TODO: Punish?
 
 
     async def grading_request(self, request: "ModelRequest") -> "ModelRequest":
@@ -239,58 +236,68 @@ class LLMNode:
 
 
     def _aggregate_load(self) -> dict:
-        """
-        Aggregate load metrics across all local model servers.
-        Returns:
-            dict with keys: 'avg_token_usage', 'total_queue', 'running'
-        """
+        """Aggregate load metrics across all local model servers."""
         stats = [self.models.get_server_stats(mp) for mp in self.models.clients.keys()]
         stats = [s for s in stats if s is not None]
         if not stats:
-            return {"avg_token_usage": 0.0, "total_queue": 0, "running": 0}
+            return {"avg_token_usage": 0.0, "total_queue": 0, "running": 0, "avg_target_usage": 0.0}
 
         avg_token_usage = sum(s["token_usage"] for s in stats) / len(stats)
         total_queue = sum(s["num_queue_reqs"] for s in stats)
         running = sum(s["num_running_reqs"] for s in stats)
+
+        target_usage_list = [self.models.dispatch_params.get(mp, {}).get("target_token_usage", 0) for mp in self.models.clients.keys()]
+        avg_target_usage = sum(target_usage_list) / len(target_usage_list) if target_usage_list else 0.0
+
         return {
             "avg_token_usage": avg_token_usage,
             "total_queue": total_queue,
-            "running": running
+            "running": running,
+            "avg_target_usage": avg_target_usage
         }
 
 
-    async def handle_received_model_request(self, request: "ModelRequest"):
+    async def handle_received_model_request(self, request: "ModelRequest", received_from_url: str):
         """Handle a received model request."""
         msg_type = request.type
 
         if msg_type == "request":
+            self.delegate_from[request.model_request_id] = received_from_url
+
+            # Maintain the route path, TODO: Only record recent hops?
+            request.route_path.append((self.node_id, time.time()))
+
             await self.request_manager.enque_request(request, queue="node")
 
         elif msg_type == "response":
-            await self.handle_response_request(request)
+            await self.handle_response_request(request, received_from_url)
 
 
-    async def handle_response_request(self, request: "ModelRequest"):
+    async def handle_response_request(self, request: "ModelRequest", received_from_url: str = None):
         """Handle the inference response from a model server."""
-        send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
-        if send_to:
-            self.dispatching_requests[send_to].discard(request.model_request_id)
+        if received_from_url:
+            send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
+            if send_to:
+                send_to_info = self.communicator.peers.get(send_to, None)
+                expect_url = send_to_info.address.to_url() if send_to_info else None
+                if received_from_url == expect_url:
+                    self.dispatching_requests[send_to].discard(request.model_request_id)
+                else:
+                    print(f"[{self.node_id}  ] Response from {received_from_url} for request {request.model_request_id} does not match expected {expect_url}.")
+            else:
+                print(f"[{self.node_id}  ] No send_to info for request {request.model_request_id} on response from {received_from_url}.")
 
-        last_hop = request.get_last_route()
+        last_hop = self.delegate_from.pop(request.model_request_id, None)
+        if last_hop:
+            _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
-        if last_hop is None:
-            # Reward the executor node if it's not the current node
+        else:
             if self.credit_ledger and request.executor_node_id != self.node_id:
-                # await self.credit_ledger.reward(request.executor_node_id, amount=1)
                 reward_amount = self._calculate_reward(request.result_scores)
                 print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
                 await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=reward_amount)
 
             self.resolve_future_timer(request)
-
-        else:
-            # Trace back the route, send the response to the last hop
-            _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
 
     def select_local_idle_model(self):
@@ -300,9 +307,9 @@ class LLMNode:
                 continue
 
             server_stats = self.models.get_server_stats(model_path)
-
             token_usage = server_stats["token_usage"]
-            if token_usage < IDLE_USAGE_THRESHOLD:
+            idle_usage = self.models.dispatch_params.get("target_token_usage", DEFAULT_IDLE_USAGE_THRESHOLD)
+            if token_usage < idle_usage:
                 return model_path
         return None
 
@@ -325,41 +332,31 @@ class LLMNode:
         if not self.credit_ledger:
             return
 
-        # 1) Aggregate current load metrics
         load = self._aggregate_load()
-        avg_usage = load["avg_token_usage"]  # Range: 0~1
+        avg_usage = load["avg_token_usage"]
+        avg_target_usage = load["avg_target_usage"]
 
-        # 2) Calculate target stake within limits
-        target = 100 * max((IDLE_USAGE_THRESHOLD - avg_usage) / IDLE_USAGE_THRESHOLD, 0.0)
+        target = 100 * max((avg_target_usage - avg_usage) / avg_target_usage, 0.0)
 
-        # 3) Get current stake and available credit
         cur_stake = await self.credit_ledger.get_stake(self.node_id)
         cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
-        
 
-        # 4) Limit adjustment step size to avoid oscillation
         delta = target - cur_stake
-        if abs(delta) < 1e-6:
+        if abs(delta) < 1e-3:
             return
 
-        # 5) Apply stake or unstake
         if delta > 0:
-            # Increase stake (only if credit available)
             amount = min(delta, cur_credit)
             if amount > 0:
-                ok = await self.credit_ledger.stake(self.node_id, amount)
+                _ = await self.credit_ledger.stake(self.node_id, amount)
         else:
-            # Decrease stake (leave minimum stake untouched)
             amount = min(-delta, cur_stake)
             if amount > 0:
-                ok = await self.credit_ledger.unstake(self.node_id, amount)
+                _ = await self.credit_ledger.unstake(self.node_id, amount)
 
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
         """Dispatch a request to the appropriate node."""
-        # if not self.credit_ledger:
-        #     return await self.policy.dispatch_policy.dispatch(self, request, source)
-
         # 1. Local model selection
         selected_model = self.select_local_idle_model()
         if selected_model:
@@ -367,7 +364,13 @@ class LLMNode:
 
         # 2. Credit-based routing
         if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
-            target_node_list = await self.credit_ledger.select_node_by_pos(self_node_id=self.node_id, seed=request.user_input, k=5)
+            # Do not include nodes in the route path
+            exclude_nodes = [node_id for node_id, _ in request.route_path]
+            target_node_list = await self.credit_ledger.select_node_by_pos(
+                exclude_nodes=exclude_nodes,
+                seed=request.user_input,
+                k=3
+            )
             if target_node_list:
                 target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
                 if target_node_id:
@@ -389,7 +392,7 @@ class LLMNode:
             try:
                 await self.communicator.gossip_probe()
                 await self.models.update_server_stats()
-                # await self._auto_adjust_stake()
+                await self._auto_adjust_stake()
                 await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
             
             except Exception as e:
@@ -408,7 +411,6 @@ class LLMNode:
 
                 if selected_node_id is None:
                     await self.request_manager.enque_front_request(request, queue=source)
-                    # await asyncio.sleep(1)
                     continue
 
                 if selected_node_id == self.node_id:
@@ -417,10 +419,11 @@ class LLMNode:
 
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
-                    _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
-
-                    self.send_to[request.model_request_id] = (selected_node_id, request, source)
+                    # Use deepcopy! Sending function will modify the request
+                    self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
                     self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+
+                    _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")
@@ -435,50 +438,3 @@ class LLMNode:
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in listen loop: {e}")
                 await asyncio.sleep(1)
-
-
-    # async def _debug_print_loop(self):
-    #     """
-    #     Periodically print:
-    #       - Local aggregated usage (avg token usage, running, queue).
-    #       - Separate lengths of user and peer queues.
-    #       - This node's credit and stake.
-    #       - Top-K stakes across the ledger (optional).
-    #     """
-    #     while True:
-    #         try:
-    #             await asyncio.sleep(5)
-
-    #             # 1) Local load snapshot
-    #             load = self._aggregate_load()
-    #             avg_usage = load["avg_token_usage"]
-    #             running = load["running"]
-    #             total_q = load["total_queue"]
-
-    #             # 2) Separate queue lengths from RequestManager
-    #             user_q_len = self.request_manager.user_request_queue.qsize()
-    #             peer_q_len = self.request_manager.node_request_queue.qsize()
-
-    #             # 3) Local credit/stake snapshot
-    #             credit = staked = 0.0
-    #             if self.credit_ledger:
-    #                 credit = await self.credit_ledger.get_account_credit(self.node_id)
-    #                 staked = await self.credit_ledger.get_stake(self.node_id)
-    #             # 4) Optional: global ledger snapshot (top-K by stake)
-    #             topk_str = "n/a"
-    #             if self.credit_ledger:
-    #                 all_stakes = await self.credit_ledger.get_all_stakes()
-    #                 if all_stakes:
-    #                     top_items = sorted(all_stakes.items(), key=lambda x: x[1], reverse=True)[:5]
-    #                     topk_str = ",".join(f"{nid}:{stake:.2f}" for nid, stake in top_items)
-
-    #             # 5) Print everything in one line
-    #             print(
-    #                 f"[{self.node_id}] usage={avg_usage:.2f} running={running} "
-    #                 f"queue_total={total_q} user_q={user_q_len} peer_q={peer_q_len} "
-    #                 f"credit={credit:.2f} staked={staked:.2f} | top{5}={topk_str}"
-    #             )
-
-    #         except Exception as e:
-    #             print(f"[{self.node_id}] Error in telemetry loop: {e}")
-    #             await asyncio.sleep(1)

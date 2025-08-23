@@ -2,6 +2,7 @@ from decentralized_agents.block import CreditAccount
 from typing import Dict, List
 import random
 import hashlib
+import time
 import aiorwlock
 
 
@@ -92,15 +93,16 @@ class TestCreditLedger:
         return True
 
 
-    async def select_node_by_pos(self, self_node_id: str, seed: str, k = 3) -> List[str]:
+    async def select_node_by_pos(self, exclude_nodes: List[str], seed: str, k = 3) -> List[str]:
         """Select top-k nodes based on their stakes using a pseudo-random selection."""
         if not self.stakes:
             return []
 
         async with self.stakes_lock.reader_lock:
             node_ids = list(self.stakes.keys())
-            if self_node_id in node_ids:
-                node_ids.remove(self_node_id)
+            for exclude_node in exclude_nodes:
+                if exclude_node in node_ids:
+                    node_ids.remove(exclude_node)
             weights = [self.stakes[nid] for nid in node_ids]
 
         total = sum(weights)
@@ -108,8 +110,10 @@ class TestCreditLedger:
         if total == 0:
             return []
 
-        seed_int = int(hashlib.sha256(seed.encode()).hexdigest(), 16)
-        rng = random.Random(seed_int)
+        # seed_int = int(hashlib.sha256(seed.encode()).hexdigest(), 16)
+        # rng = random.Random(seed_int)
+        # TODO: For now, do not use seed
+        rng = random.Random(time.time())
 
         return rng.choices(node_ids, weights=weights, k=k)
 

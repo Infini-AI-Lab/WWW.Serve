@@ -10,10 +10,9 @@ if TYPE_CHECKING:
     from .request import ModelRequest
 
 
-TARGET_TOKEN_USAGE = 0.5
-
-MIN_REQUESTS_PER_WINDOW = 0
-MAX_REQUESTS_PER_WINDOW = 5
+DEFAULT_TARGET_TOKEN_USAGE = 0.5
+DEFAULT_MIN_REQUESTS_PER_WINDOW = 0
+DEFAULT_MAX_REQUESTS_PER_WINDOW = 5
 
 DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
 
@@ -50,7 +49,7 @@ class ModelManager:
                 "num_running_reqs": 0,
                 "num_queue_reqs": 0,
                 "token_usage": 0.0,
-                "max_requests_per_window": self.dispatch_params[model_path].get("min_requests_per_window", MIN_REQUESTS_PER_WINDOW)
+                "max_requests_per_window": self.dispatch_params[model_path].get("min_requests_per_window", DEFAULT_MIN_REQUESTS_PER_WINDOW)
             }
             self.server_stats_history[model_path] = []
             self.base_urls[model_path] = base_url
@@ -73,9 +72,9 @@ class ModelManager:
 
     def _calculate_max_requests_per_window(self, model_path):
         """Calculate the maximum number of requests per window based on token usage."""
-        target_usage = self.dispatch_params[model_path].get("target_token_usage", TARGET_TOKEN_USAGE)
-        min_reqs = self.dispatch_params[model_path].get("min_requests_per_window", MIN_REQUESTS_PER_WINDOW)
-        max_reqs = self.dispatch_params[model_path].get("max_requests_per_window", MAX_REQUESTS_PER_WINDOW)
+        target_usage = self.dispatch_params[model_path].get("target_token_usage", DEFAULT_TARGET_TOKEN_USAGE)
+        min_reqs = self.dispatch_params[model_path].get("min_requests_per_window", DEFAULT_MIN_REQUESTS_PER_WINDOW)
+        max_reqs = self.dispatch_params[model_path].get("max_requests_per_window", DEFAULT_MAX_REQUESTS_PER_WINDOW)
 
         token_usage = self.server_stats[model_path]["token_usage"]
         usage_gap = max(0.0, target_usage - token_usage)
@@ -105,10 +104,7 @@ class ModelManager:
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
             simu_prompt_token = random.randint(10, 100)
-            if request.generate_token_length is None:
-                simu_completion_token = random.randint(1, 32768)
-            else:
-                simu_completion_token = request.generate_token_length
+            simu_completion_token = random.randint(1, 32768)
             response = {
                 "source_node": request.source_node_addr.node_id,
                 "executor_node": self.node.node_id,
@@ -124,14 +120,15 @@ class ModelManager:
             }
             request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
             request.set_response(response, executor_node_id=self.node.node_id)
-            # TODO: LLM-as-a-Judge!
-            request_with_scores = await self.node.grading_request(request)
-            if request_with_scores:
-                print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
-                await self.node.handle_response_request(request_with_scores)
-            else:
-                print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
-                await self.node.handle_response_request(request)
+            await self.node.handle_response_request(request)
+            # TODO: For now, no grading
+            # request_with_scores = await self.node.grading_request(request)
+            # if request_with_scores:
+            #     print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
+            #     await self.node.handle_response_request(request_with_scores)
+            # else:
+            #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
+            #     await self.node.handle_response_request(request)
 
         else: # LLM Server
             try:
@@ -156,14 +153,15 @@ class ModelManager:
                 response["executor_node"] = self.node.node_id
 
                 request.set_response(response, executor_node_id=self.node.node_id)
-                # TODO: LLM-as-a-Judge!
-                request_with_scores = await self.node.grading_request(request)
-                if request_with_scores:
-                    print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
-                    await self.node.handle_response_request(request_with_scores)
-                else:
-                    print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
-                    await self.node.handle_response_request(request)
+                await self.node.handle_response_request(request)
+                # TODO: For now, no grading
+                # request_with_scores = await self.node.grading_request(request)
+                # if request_with_scores:
+                #     print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
+                #     await self.node.handle_response_request(request_with_scores)
+                # else:
+                #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
+                #     await self.node.handle_response_request(request)
 
             except Exception as e:
                 response = {

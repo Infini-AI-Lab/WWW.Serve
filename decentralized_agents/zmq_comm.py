@@ -2,7 +2,6 @@ import zmq.asyncio
 import asyncio
 from typing import Dict, Union, List, TYPE_CHECKING
 import time
-import random
 import json
 
 
@@ -86,7 +85,7 @@ class ZmqCommunicator:
 
         if response:
             await self._sync_peers_and_blocks(response.payload.known_peers, response.payload.known_blocks)
-
+            print(f"[{self.node.node_id}  ] Joined network at {peer_url}")
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_url}")
 
@@ -104,7 +103,7 @@ class ZmqCommunicator:
             socket.setsockopt(zmq.IDENTITY, identity)
 
             socket.connect(target_url)
-            await socket.send_multipart([b'', json.dumps(comm_request.model_dump()).encode()])
+            await socket.send_multipart([b'', comm_request.model_dump_json().encode()])
 
             poller = zmq.asyncio.Poller()
             poller.register(socket, zmq.POLLIN)
@@ -135,15 +134,10 @@ class ZmqCommunicator:
             async with self.zmq_lock:
                 target_peerinfo = self.peers.get(target_id, None)
             if target_peerinfo is None:
-                # print(f"[{self.node.node_id}  ] Target node {target_id} not found in peers.")
                 return None
             target_address = target_peerinfo.address
         else:
             target_address = Address.from_url(target_url)
-
-
-        if type == "ModelRequest" and payload.type == "request":
-            payload.add_route(target_address.to_url())
 
         comm_request = CommRequest(
             sender=self.address,
@@ -154,7 +148,6 @@ class ZmqCommunicator:
 
         response = await self._send_request(comm_request)
         if response is None:
-            # print(f"[{self.node.node_id}  ] No response from {target_url}.")
             return None
 
         return CommRequest.model_validate(response)
@@ -330,7 +323,7 @@ class ZmqCommunicator:
                 await self.receiver.send_multipart([
                     identity,
                     b'',
-                    json.dumps(reply_request.model_dump()).encode()
+                    reply_request.model_dump_json().encode()
                 ])
 
             elif req_type == "probe":
@@ -346,7 +339,7 @@ class ZmqCommunicator:
                 await self.receiver.send_multipart([
                     identity,
                     b'',
-                    json.dumps(reply_request.model_dump()).encode()
+                    reply_request.model_dump_json().encode()
                 ])
 
             elif req_type == "broadcast":
@@ -386,10 +379,10 @@ class ZmqCommunicator:
             await self.receiver.send_multipart([
                 identity,
                 b'',
-                json.dumps(reply_request.model_dump()).encode()
+                reply_request.model_dump_json().encode()
             ])
 
-            self.node.create_task(self.node.handle_received_model_request(recv_request.payload))
+            self.node.create_task(self.node.handle_received_model_request(recv_request.payload, sender.to_url()))
 
         else:
             print(f"[{self.node.node_id}  ] Unknown communication type: {recv_type}")

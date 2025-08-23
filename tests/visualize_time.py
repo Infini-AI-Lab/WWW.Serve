@@ -49,9 +49,9 @@ def get_latency(json_path):
     executor_list = []
     error_idx = set()
     for idx, item in enumerate(data):
-        if item["response"]["meta_data"]["finish_reason"] == "TIMEOUT":
-            error_idx.add(idx)
-            continue
+        # if item["response"]["meta_data"]["finish_reason"] == "TIMEOUT":
+        #     error_idx.add(idx)
+        #     continue
         latency = item["timestamp_list"][-1] - item["timestamp_list"][0]
         latency_list.append(latency)
         executor_list.append(item["response"]["executor_node"])
@@ -59,7 +59,7 @@ def get_latency(json_path):
     return latency_list, executor_list, error_idx
 
 
-json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test21/test_21_result.json"
+json_path_network = "/home/hywang/Reasoning/Decentralized-Agents/results/test35/test_35_result.json"
 
 latency_network, executor_list, err_set_network = get_latency(json_path_network)
 
@@ -75,12 +75,12 @@ colors = {
 
 
 
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(12, 6))
 
 for i, (req_id, lat, node) in enumerate(zip(idx, latency_network, executor_list)):
     plt.bar(req_id, lat, color=colors[node], label=f"Node {node[-1]}" if i == executor_list.index(node) else "", width=0.7)
 
-plt.legend()
+# plt.legend(fontsize=16)
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
 plt.xlabel("Request Index", fontsize=16)

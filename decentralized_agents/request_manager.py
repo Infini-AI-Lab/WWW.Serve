@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .request import ModelRequest
 
 
-DEFAULT_INPUT_WINDOW_SIZE = 10             # Input window size (s)
+INPUT_WINDOW_SIZE = 60             # Input window size (s)
 
 
 class RequestManager:
@@ -35,7 +35,7 @@ class RequestManager:
         dq = self.req_input_windows.get(model_path)
         dq.append((request_id, current_time))
 
-        while dq and (current_time - dq[0][1]) > DEFAULT_INPUT_WINDOW_SIZE:
+        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
             dq.popleft()
 
 
@@ -44,7 +44,7 @@ class RequestManager:
         current_time = time.time()
         dq = self.req_input_windows.get(model_path)
 
-        while dq and (current_time - dq[0][1]) > DEFAULT_INPUT_WINDOW_SIZE:
+        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
             dq.popleft()
         
         return len(dq)
@@ -80,37 +80,16 @@ class RequestManager:
             raise ValueError("Queue must be 'user' or 'node'")
 
 
-    # async def fetch_one_request(self) -> Tuple["ModelRequest", str]:
-    #     get_user = asyncio.create_task(self.user_request_queue.get())
-    #     get_node = asyncio.create_task(self.node_request_queue.get())
-    #     done, pending = await asyncio.wait(
-    #         [get_user, get_node],
-    #         return_when=asyncio.FIRST_COMPLETED,
-    #     )
-
-    #     for task in pending:
-    #         task.cancel()
-    #         try:
-    #             await task
-    #         except asyncio.CancelledError:
-    #             pass
-
-
-    #     request = list(done)[0].result()
-    #     source = "user" if done == {get_user} else "node"
-    #     return request, source
-    
-    async def fetch_one_request(self) -> tuple["ModelRequest", str]:
+    async def fetch_one_request(self) -> Tuple["ModelRequest", str]:
         get_user = asyncio.create_task(self.user_request_queue.get())
         get_node = asyncio.create_task(self.node_request_queue.get())
 
         try:
-            done, pending = await asyncio.wait(
+            done, _ = await asyncio.wait(
                 [get_user, get_node],
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
-            # 取先完成的那一个
             if get_user in done:
                 request = get_user.result()
                 source = "user"
@@ -122,20 +101,17 @@ class RequestManager:
                 other_task = get_user
                 other_queue = self.user_request_queue
 
-            # 处理“另一个任务”：尽量取消；若取消晚了且它已完成，则把结果放回去
             other_task.cancel()
             try:
-                other_result = await other_task  # 若已完成，这里不会抛 CancelledError
+                other_result = await other_task
             except asyncio.CancelledError:
-                # 真的取消成功：它没有拿到队列元素 -> 没事
                 pass
             else:
-                # 说明在你 cancel 前它已经完成并从队列取走了一个元素 -> 必须放回去
                 await other_queue.put(other_result)
 
             return request, source
+
         finally:
-            # 保底：如果还有未结束的子任务，取消并收尸
             for t in (get_user, get_node):
                 if not t.done():
                     t.cancel()

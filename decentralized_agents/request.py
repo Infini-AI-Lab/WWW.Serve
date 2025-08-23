@@ -1,6 +1,6 @@
 from uuid import uuid4
 import time
-from typing import List, Dict, Literal, ClassVar, Optional, Union, Annotated
+from typing import List, Tuple, Dict, Literal, ClassVar, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
 from .block import CreditBlock
@@ -56,14 +56,11 @@ class ModelRequest(BaseModel):
     model_request_id: int | None = None
 
     source_node_addr: Address
-    route_path: List[str] = Field(default_factory=list)  # URLs of nodes in the route
-    route_idx: int = -1  # Current index in the route path, just for TESTING
+    executor_node_id: Optional[str] = None
+    route_path: List[Tuple[str, float]] = []  # (node_id, timestamp)
 
     user_input: Optional[str] = None
-    generate_token_length: Optional[int] = None
-
     model_result: Optional[Dict] = None
-    executor_node_id: Optional[str] = None
 
     result_scores: Optional[List[float]] = None
 
@@ -86,20 +83,6 @@ class ModelRequest(BaseModel):
         val = cls._cnt
         cls._cnt += 1
         return val
-
-
-    def add_route(self, url: str):
-        self.route_path.append(url)
-        self.route_idx += 1 # TODO: Not save!! Just for TESTING
-
-
-    def get_last_route(self) -> str | None:
-        # self.route_path.pop()
-        # TODO: Not save!! Just for TESTING
-        self.route_idx -= 1
-        if self.route_idx < 0:
-            return None
-        return self.route_path[self.route_idx]
 
 
     def set_response(self, response: dict, executor_node_id: str):

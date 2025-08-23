@@ -72,31 +72,27 @@ async def main():
     await asyncio.sleep(1)
 
     await node1.start()
-    await asyncio.sleep(random.uniform(1, 3))
     await node2.start()
-    await asyncio.sleep(random.uniform(1, 3))
     await node3.start()
-    await asyncio.sleep(random.uniform(1, 3))
     await node4.start()
-    await asyncio.sleep(random.uniform(1, 3))
 
     await node2.join_network(node1.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
     await node3.join_network(node2.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
     await node4.join_network(node3.communicator.address.to_url())
-    await asyncio.sleep(random.uniform(1, 3))
 
     ##### Testing code #####
     with open("datasets/open-r1--OpenR1-Math-220k.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
     nodes = [node1, node2, node3, node4]
-    # nodes = [node1]
 
-    node1_times = poisson_time_list(rate=0.5, start_time=0, end_time=300)
-    # asyncio.create_task(node_start_join(node4, node1.communicator.address.to_url(), delay=150))
-    # asyncio.create_task(node_offline(node4, delay=210))
+    node1_times = poisson_time_list(rate=1/10, start_time=0, end_time=300)
+    # asyncio.create_task(node_start_join(node2, node1.communicator.address.to_url(), delay=300))
+    # asyncio.create_task(node_start_join(node3, node1.communicator.address.to_url(), delay=450))
+    # asyncio.create_task(node_start_join(node4, node1.communicator.address.to_url(), delay=600))
+    # asyncio.create_task(node_offline(node4, delay=300))
+    # asyncio.create_task(node_offline(node3, delay=450))
+    # asyncio.create_task(node_offline(node2, delay=600))
 
     tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
             # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
@@ -106,7 +102,7 @@ async def main():
 
     all_results = await asyncio.gather(*tasks)
 
-    with open("results/test_24_result.json", "w", encoding="utf-8") as f:
+    with open("results/test_36_result.json", "w", encoding="utf-8") as f:
         json.dump(
             all_results,
             f,
@@ -115,7 +111,7 @@ async def main():
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"results/test_24_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"results/test_36_node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,
@@ -124,6 +120,15 @@ async def main():
             )
 
     print(node1_times)
+    for node in nodes:
+        print(f"Printing {node.node_id}")
+        print("pending_futures: ", node.pending_futures)
+        print("delegate_from: ", node.delegate_from)
+        print("send_to: ", node.send_to)
+        print("dispatching_requests: ", node.dispatching_requests)
+        print("Number of tasks: ", len(node._tasks))
+        if len(node._tasks) != 3:
+            print("Tasks: ", node._tasks)
 
 
 if __name__ == "__main__":
