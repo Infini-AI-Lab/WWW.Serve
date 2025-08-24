@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
-# MAX_QUEUE_REQS = 10
 DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
 
 
@@ -316,16 +315,19 @@ class LLMNode:
 
     def select_local_model_for_queue(self):
         """Select a local model for queuing the request."""
-        raise NotImplementedError
-        # for model_path in self.models.clients:
-        #     if not self.models.model_dispatch_available(model_path):
-        #         continue
+        queued = {}
+        for model_path in self.models.clients:
+            if not self.models.model_dispatch_available(model_path):
+                continue
 
-        #     server_stats = self.models.get_server_stats(model_path)
-        #     num_queue_reqs = server_stats["num_queue_reqs"]
-        #     if num_queue_reqs < MAX_QUEUE_REQS:
-        #         return model_path
-        # return None
+            server_stats = self.models.get_server_stats(model_path)
+            num_queue_reqs = server_stats["num_queue_reqs"]
+            queued[model_path] = num_queue_reqs
+
+        if queued:
+            return min(queued, key=queued.get)
+
+        return None
 
 
     async def _auto_adjust_stake(self):
@@ -363,24 +365,26 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
-            # Do not include nodes in the route path
-            exclude_nodes = [node_id for node_id, _ in request.route_path]
-            target_node_list = await self.credit_ledger.select_node_by_pos(
-                exclude_nodes=exclude_nodes,
-                seed=request.user_input,
-                k=3
-            )
-            if target_node_list:
-                target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
-                if target_node_id:
-                    return target_node_id, None
+        if self.credit_ledger:
+            if await self.credit_ledger.get_account_credit(self.node_id) > 0:
+                # Do not include nodes in the route path
+                exclude_nodes = [node_id for node_id, _ in request.route_path]
+                target_node_list = await self.credit_ledger.select_node_by_pos(
+                    exclude_nodes=exclude_nodes,
+                    seed=request.user_input,
+                    k=3
+                )
+                if target_node_list:
+                    target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
+                    if target_node_id:
+                        return target_node_id, None
 
-        # 3. Fallback to local model selection for queuing
-        # TODO: Do not queue in backend for now
-        # selected_model = self.select_local_model_for_queue()
-        # if selected_model:
-        #     return self.node_id, selected_model
+        else:
+            # 3. Fallback to local model selection for queuing
+            # Only for single-deployment
+            selected_model = self.select_local_model_for_queue()
+            if selected_model:
+                return self.node_id, selected_model
 
         # 4. No model available in the local node or network
         return None, None

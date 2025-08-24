@@ -5,6 +5,7 @@ import asyncio
 import json
 import random
 import numpy as np
+import os
 
 
 async def timed_submit(prompt, node: LLMNode, delay = 0):
@@ -46,8 +47,6 @@ async def main():
     ledger = TestCreditLedger()
     # ledger = None
 
-    # If using actual LLM servers, Set the DEBUG_MODE to False in model_manager.py!
-    # Remember to adjust the credit settings in the config files.
     node1 = await LLMNode.init_with_ledger(
         node_id="node1",
         config_path="configs/sglang_node1.yaml",
@@ -96,27 +95,30 @@ async def main():
 
     tasks = [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node1, delay=node1_times[i])) for i in range(len(node1_times))] \
             # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
-    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node2, delay=node2_times[i])) for i in range(len(node2_times))] \
-    #          + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
-            #  + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node4, delay=node4_times[i])) for i in range(len(node4_times))]
+            # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node2, delay=node2_times[i])) for i in range(len(node2_times))] \
+            # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node3, delay=node3_times[i])) for i in range(len(node3_times))] \
+            # + [asyncio.create_task(timed_submit(data[i % len(data)]["problem"], node4, delay=node4_times[i])) for i in range(len(node4_times))]
 
     all_results = await asyncio.gather(*tasks)
 
-    with open("results/test_36_result.json", "w", encoding="utf-8") as f:
+    result_folder = "results/decentralized_test_1/"
+    os.makedirs(result_folder, exist_ok=True)
+
+    with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
         json.dump(
             all_results,
             f,
             ensure_ascii=False,
-            indent=2,
+            indent=4,
         )
 
     for idx, node in enumerate(nodes):
-        with open(f"results/test_36_node_{idx+1}.json", "w", encoding="utf-8") as f:
+        with open(f"{result_folder}/node_{idx+1}.json", "w", encoding="utf-8") as f:
             json.dump(
                 node.models.server_stats_history,
                 f,
                 ensure_ascii=False,
-                indent=2,
+                indent=4,
             )
 
     print(node1_times)

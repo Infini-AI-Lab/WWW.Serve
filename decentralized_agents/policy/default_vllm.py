@@ -4,32 +4,32 @@ from prometheus_client.parser import text_string_to_metric_families
 
 
 from .base import (
-    BaseDispatchPolicy,
+    # BaseDispatchPolicy,
     BaseRoutingPolicy,
     BaseModelPolicy
 )
 
 
 
-class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
-    """Default node policy for vLLM."""
+# class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
+#     """Default node policy for vLLM."""
 
-    async def dispatch(self, node, request, source) -> Tuple[Optional[str], Optional[str]]:
-        """Dispatch a single request to the appropriate model."""
-        selected_model = node.select_local_idle_model()
+#     async def dispatch(self, node, request, source) -> Tuple[Optional[str], Optional[str]]:
+#         """Dispatch a single request to the appropriate model."""
+#         selected_model = node.select_local_idle_model()
 
-        if selected_model:
-            return node.node_id, selected_model
+#         if selected_model:
+#             return node.node_id, selected_model
 
-        target_node_id = await node.communicator.select_node_from_peers()
-        if target_node_id:
-            return target_node_id, None
+#         target_node_id = await node.communicator.select_node_from_peers()
+#         if target_node_id:
+#             return target_node_id, None
 
-        selected_model = node.select_local_model_for_queue()
-        if selected_model:
-            return node.node_id, selected_model
+#         selected_model = node.select_local_model_for_queue()
+#         if selected_model:
+#             return node.node_id, selected_model
 
-        return None, None
+#         return None, None
 
 
 
