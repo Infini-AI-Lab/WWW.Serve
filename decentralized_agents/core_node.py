@@ -153,7 +153,6 @@ class LLMNode:
         if future and not future.done():
             request.timestamp_list[3] = time.time()  # Set future resolved timestamp
             future.set_result({
-                "request_id": request_id,
                 "timestamp_list": request.timestamp_list,
                 "response": request.model_result
             })

@@ -2,24 +2,11 @@ import _setup_path
 import asyncio
 from openai import AsyncOpenAI
 import json
-import numpy as np
 import os
 import time
 from typing import Dict, List, Optional, Tuple
 import aiohttp
 from prometheus_client.parser import text_string_to_metric_families
-
-
-def poisson_time_list(rate, start_time, end_time):
-    times = []
-    t = start_time
-    while t < end_time:
-        interval = np.random.exponential(1 / rate)
-        t += interval
-        if t < end_time:
-            times.append(t)
-
-    return times
 
 
 async def _get_sglang_metrics(
@@ -92,7 +79,7 @@ def choose_server(stats):
     return min(stats, key=lambda k: (stats[k]["usage"], stats[k]["running"] + stats[k]["queued"]))
 
 
-async def dispatch_request(idx, clients, request):
+async def dispatch_request(idx, clients, source, problem):
     submit_time = time.time()
 
     stats = await update_all_server_stats(clients)
@@ -107,7 +94,7 @@ async def dispatch_request(idx, clients, request):
             model = model_path,
             messages = [{
                 "role": "user",
-                "content": request
+                "content": problem
             }],
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": True},
@@ -119,7 +106,7 @@ async def dispatch_request(idx, clients, request):
         finish_time = time.time()
 
         response = {
-            "request_id": idx,
+            "idx": idx,
             "timestamp_list": [submit_time, finish_time],
             "server_stats": stats,
             "response": {
@@ -132,13 +119,14 @@ async def dispatch_request(idx, clients, request):
                         "total_tokens": meta_response.usage.total_tokens
                     }
                 },
-                "executor": target_server
+                "source_node": source,
+                "executor_node": target_server
             }
         }
     except Exception as e:
         print(f"Error dispatching request {idx}: {e}")
         response = {
-            "request_id": idx,
+            "idx": idx,
             "timestamp_list": [submit_time, -1],
             "server_stats": stats,
             "response": {
@@ -158,28 +146,28 @@ async def dispatch_request(idx, clients, request):
     return response
 
 
-async def run_with_delay(idx, clients, request, delay):
+async def run_with_delay(idx, clients, target, problem, delay):
     await asyncio.sleep(delay)
-    return await dispatch_request(idx, clients, request)
+    return await dispatch_request(idx, clients, target, problem)
 
 
-CLIENTS_INFO = {
-    "client1": {
+NODES_INFO = {
+    "node1": {
         "base_url": "http://192.168.102.12:30000/v1",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
-    "client2": {
+    "node2": {
         "base_url": "http://192.168.102.12:30001/v1",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
-    "client3": {
+    "node3": {
         "base_url": "http://192.168.102.12:30002/v1",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
-    "client4": {
+    "node4": {
         "base_url": "http://192.168.102.12:30003/v1",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
@@ -190,21 +178,17 @@ CLIENTS_INFO = {
 async def main():
     clients = {
         name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"])
-        for name, info in CLIENTS_INFO.items()
+        for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
 
     ##### Testing code #####
-    with open("datasets/open-r1--OpenR1-Math-220k.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
+    with open("results/poisson_times.json", "r", encoding="utf-8") as f:
+        poisson_times = json.load(f)
 
-    submit_times = poisson_time_list(rate=1/10, start_time=0, end_time=300)
-
-    tasks = []
-    for i, t in enumerate(submit_times):
-        req = data[i]["problem"]
-        tasks.append(asyncio.create_task(run_with_delay(i, clients, req, t)))
-
+    tasks = [
+        asyncio.create_task(run_with_delay(item["idx"], clients, item["target"], item["problem"], item["delay"])) for item in poisson_times
+    ]
     all_results = await asyncio.gather(*tasks)
 
     result_folder = "results/centralized_test_1/"
@@ -217,8 +201,6 @@ async def main():
             ensure_ascii=False,
             indent=4,
         )
-
-    print(submit_times)
 
 
 if __name__ == "__main__":

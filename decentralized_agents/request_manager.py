@@ -101,13 +101,17 @@ class RequestManager:
                 other_task = get_user
                 other_queue = self.user_request_queue
 
-            other_task.cancel()
-            try:
-                other_result = await other_task
-            except asyncio.CancelledError:
-                pass
+            if other_task.done():
+                try:
+                    other_result = other_task.result()
+                except Exception:
+                    pass
+                else:
+                    await other_queue.put(other_result)
             else:
-                await other_queue.put(other_result)
+                other_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await other_task
 
             return request, source
 
