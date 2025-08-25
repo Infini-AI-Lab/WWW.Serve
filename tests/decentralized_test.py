@@ -5,13 +5,16 @@ import asyncio
 import json
 import random
 import os
+import time
 
 
 async def timed_submit(idx, problem, node: LLMNode, delay = 0):
     if delay > 0:
         await asyncio.sleep(delay)
+    submit_time = time.time()
     result = await node.submit_request(problem)
-    return idx, result
+    finish_time = time.time()
+    return idx, result, [submit_time, finish_time]
 
 
 async def node_offline(node: LLMNode, delay=0):
@@ -81,15 +84,16 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/decentralized_test_1/"
+    result_folder = "results/decentralized_test_4/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
         json.dump(
             [{
                 "idx": idx,
+                "timestamp_list": timestamp_list,
                 **result
-            } for (idx, result) in all_results],
+            } for (idx, result, timestamp_list) in all_results],
             f,
             ensure_ascii=False,
             indent=4,

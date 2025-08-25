@@ -35,9 +35,12 @@ class LLMNode:
         self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
         self.pending_futures: Dict[str, Tuple[asyncio.Future, asyncio.Task]] = {}  # request_id -> (future, timer)
+
+        self.lock = asyncio.Lock()
         self.delegate_from: Dict[str, str] = {}  # request_id -> delegate_from_url
         self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
+
         self._tasks: Set[asyncio.Task] = set()
 
         self.communicator = ZmqCommunicator(
@@ -132,13 +135,14 @@ class LLMNode:
             type="request",
             route_path=[(self.node_id, time.time())]
         ).assign_id()
-        request.timestamp_list[0] = time.time()  # Set submit timestamp
 
         timer = self.create_task(self._start_timeout_timer(request, timeout=DEFAULT_REQUEST_TIMEOUT))
         future = asyncio.get_running_loop().create_future()
         self.pending_futures[request.model_request_id] = (future, timer)
 
         await self.request_manager.enque_request(request, queue="user")
+
+        # {"response": model_result}
         return await future
 
 
@@ -151,9 +155,7 @@ class LLMNode:
             timer.cancel()
 
         if future and not future.done():
-            request.timestamp_list[3] = time.time()  # Set future resolved timestamp
             future.set_result({
-                "timestamp_list": request.timestamp_list,
                 "response": request.model_result
             })
         else:
@@ -191,7 +193,9 @@ class LLMNode:
 
         for request_id in list(self.dispatching_requests[node_id]):
             print(f"[{self.node_id}  ] Request {request_id} requeuing.")
-            send_to, request, source = self.send_to.pop(request_id, (None, None, None))
+            async with self.lock:
+                send_to, request, source = self.send_to.pop(request_id, (None, None, None))
+
             if send_to:
                 await self.request_manager.enque_front_request(request, queue=source)
             else:
@@ -260,7 +264,8 @@ class LLMNode:
         msg_type = request.type
 
         if msg_type == "request":
-            self.delegate_from[request.model_request_id] = received_from_url
+            async with self.lock:
+                self.delegate_from[request.model_request_id] = received_from_url
 
             # Maintain the route path, TODO: Only record recent hops?
             request.route_path.append((self.node_id, time.time()))
@@ -274,18 +279,23 @@ class LLMNode:
     async def handle_response_request(self, request: "ModelRequest", received_from_url: str = None):
         """Handle the inference response from a model server."""
         if received_from_url:
-            send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
+            async with self.lock:
+                send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
+
             if send_to:
                 send_to_info = self.communicator.peers.get(send_to, None)
                 expect_url = send_to_info.address.to_url() if send_to_info else None
                 if received_from_url == expect_url:
-                    self.dispatching_requests[send_to].discard(request.model_request_id)
+                    async with self.lock:
+                        self.dispatching_requests[send_to].discard(request.model_request_id)
                 else:
                     print(f"[{self.node_id}  ] Response from {received_from_url} for request {request.model_request_id} does not match expected {expect_url}.")
             else:
                 print(f"[{self.node_id}  ] No send_to info for request {request.model_request_id} on response from {received_from_url}.")
 
-        last_hop = self.delegate_from.pop(request.model_request_id, None)
+        async with self.lock:
+            last_hop = self.delegate_from.pop(request.model_request_id, None)
+
         if last_hop:
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
@@ -423,8 +433,9 @@ class LLMNode:
                 else:
                     print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                     # Use deepcopy! Sending function will modify the request
-                    self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
-                    self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+                    async with self.lock:
+                        self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
+                        self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
 
                     _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
 

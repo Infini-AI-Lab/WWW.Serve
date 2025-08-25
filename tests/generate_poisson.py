@@ -1,7 +1,7 @@
 import numpy as np
 import json
 
-def poisson_time_list(rate, start_time, end_time):
+def poi(rate, start_time, end_time):
     times = []
     t = start_time
     while t < end_time:
@@ -13,10 +13,10 @@ def poisson_time_list(rate, start_time, end_time):
     return times
 
 
-node1_times = poisson_time_list(rate=1/15, start_time=0, end_time=300) + poisson_time_list(rate=1/30, start_time=300, end_time=600)
-node2_times = poisson_time_list(rate=1/15, start_time=0, end_time=300) + poisson_time_list(rate=1/30, start_time=300, end_time=600)
-node3_times = poisson_time_list(rate=1/30, start_time=0, end_time=300) + poisson_time_list(rate=1/15, start_time=300, end_time=600)
-node4_times = poisson_time_list(rate=1/30, start_time=0, end_time=300) + poisson_time_list(rate=1/15, start_time=300, end_time=600)
+node1_times = poi(rate=1/15, start_time=0, end_time=450) + poi(rate=1/8, start_time=450, end_time=750) + poi(rate=1/15, start_time=750, end_time=1500)
+node2_times = poi(rate=1/15, start_time=0, end_time=450) + poi(rate=1/8, start_time=450, end_time=750) + poi(rate=1/15, start_time=750, end_time=1500)
+node3_times = poi(rate=1/15, start_time=0, end_time=900) + poi(rate=1/8, start_time=900, end_time=1200) + poi(rate=1/15, start_time=1200, end_time=1500)
+node4_times = poi(rate=1/15, start_time=0, end_time=900) + poi(rate=1/8, start_time=900, end_time=1200) + poi(rate=1/15, start_time=1200, end_time=1500)
 
 
 print("len(node1_times):", len(node1_times))

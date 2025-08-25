@@ -2,26 +2,78 @@ import _setup_path
 import asyncio
 from openai import AsyncOpenAI
 import json
-import numpy as np
 import os
 import time
+import aiohttp
+from prometheus_client.parser import text_string_to_metric_families
+from typing import Dict, List, Optional, Tuple
 
 
-def poisson_time_list(rate, start_time, end_time):
-    times = []
-    t = start_time
-    while t < end_time:
-        interval = np.random.exponential(1 / rate)
-        t += interval
-        if t < end_time:
-            times.append(t)
+async def _get_sglang_metrics(
+    server_url: str,
+    metric_list: Optional[List[str]] = None
+) -> Optional[List[Dict]]:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{server_url}/metrics", timeout=3) as response:
+                if response.status != 200:
+                    return None
+                metrics_text = await response.text()
 
-    return times
+        parsed_metrics = []
+        for family in text_string_to_metric_families(metrics_text):
+            for sample in family.samples:
+                if metric_list is None or sample.name in metric_list:
+                    parsed_metrics.append({
+                        "name": sample.name,
+                        "value": sample.value,
+                        "labels": sample.labels
+                    })
+        return parsed_metrics
+
+    except Exception as e:
+        return None
+
+
+async def get_server_metrics(server_url: str) -> Tuple[int, int, float]:
+    """Get server metrics for the model."""
+    metrics = await _get_sglang_metrics(server_url, metric_list=
+                                        ["sglang:num_running_reqs",
+                                        "sglang:num_queue_reqs",
+                                        "sglang:token_usage"])
+
+    if metrics is None:
+        return 999, 999, 1.0
+
+    raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
+
+    token_usage = raw_metrics.get("sglang:token_usage", 1.0)
+    num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 999)
+    num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 999)
+
+    return int(num_running_reqs), int(num_queue_reqs), token_usage
+
+
+class RecordStats:
+    def __init__(self, server_url):
+        self.stats = []
+        self.server_url = server_url
+        asyncio.create_task(self.record_stats_periodically())
+
+    async def record_stats_periodically(self):
+        while True:
+            num_running_reqs, num_queue_reqs, token_usage = await get_server_metrics(server_url=self.server_url)
+            self.stats.append({
+                "timestamp": time.time(),
+                "num_running_reqs": num_running_reqs,
+                "num_queue_reqs": num_queue_reqs,
+                "token_usage": token_usage
+            })
+            await asyncio.sleep(3)
 
 
 async def inference_request(idx, client_name, client, model_path, problem):
     submit_time = time.time()
-
     try:
         meta_response = await client.chat.completions.create(
             model = model_path,
@@ -32,7 +84,7 @@ async def inference_request(idx, client_name, client, model_path, problem):
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": True},
             },
-            temperature = 0.6,
+            temperature = 0.0,
             top_p = 0.95,
             max_tokens = 8192
         )
@@ -59,7 +111,7 @@ async def inference_request(idx, client_name, client, model_path, problem):
         print(f"Error dispatching request {idx}: {e}")
         response = {
             "idx": idx,
-            "timestamp_list": [submit_time, -1],
+            "timestamp_list": [submit_time, 0],
             "response": {
                 "content": "Error occurred",
                 "meta_data": {
@@ -80,27 +132,28 @@ async def inference_request(idx, client_name, client, model_path, problem):
 
 async def submit_with_delay(idx, client_name, client, model_path, problem, delay):
     await asyncio.sleep(delay)
+    print(f"Submitting request {idx} to {client_name}")
     return await inference_request(idx, client_name, client, model_path, problem)
 
 
 NODES_INFO = {
     "node1": {
-        "base_url": "http://192.168.102.12:30000/v1",
+        "base_url": "http://192.168.102.11:30000/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node2": {
-        "base_url": "http://192.168.102.12:30001/v1",
+        "base_url": "http://192.168.102.11:30001/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node3": {
-        "base_url": "http://192.168.102.12:30002/v1",
+        "base_url": "http://192.168.102.11:30002/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node4": {
-        "base_url": "http://192.168.102.12:30003/v1",
+        "base_url": "http://192.168.102.11:30003/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     }
@@ -110,6 +163,11 @@ NODES_INFO = {
 async def main():
     clients = {
         name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"])
+        for name, info in NODES_INFO.items()
+    }
+    await asyncio.sleep(1)
+    stats = {
+        name: RecordStats(info["base_url"][:-4])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
@@ -124,7 +182,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/single_test_1/"
+    result_folder = "results/single_test_4/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
@@ -134,6 +192,16 @@ async def main():
             ensure_ascii=False,
             indent=4,
         )
+
+    for node, record_stats in stats.items():
+        node_stats = record_stats.stats
+        with open(f"{result_folder}/{node}.json", "w", encoding="utf-8") as f:
+            json.dump(
+                {node: node_stats},
+                f,
+                ensure_ascii=False,
+                indent=4,
+            )
 
 
 if __name__ == "__main__":

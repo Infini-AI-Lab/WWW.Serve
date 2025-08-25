@@ -1,7 +1,8 @@
 from uuid import uuid4
 import time
-from typing import List, Tuple, Dict, Literal, ClassVar, Optional, Union, Annotated
+from typing import List, Tuple, Dict, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
+
 
 from .block import CreditBlock
 
@@ -53,7 +54,7 @@ class NodeRequest(BaseModel):
 
 class ModelRequest(BaseModel):
     type: Literal["request", "response"] = "request"
-    model_request_id: int | None = None
+    model_request_id: Optional[str] = None
 
     source_node_addr: Address
     executor_node_id: Optional[str] = None
@@ -64,25 +65,14 @@ class ModelRequest(BaseModel):
 
     result_scores: Optional[List[float]] = None
 
-    timestamp_list: List[float] = [0.0, 0.0, 0.0, 0.0] # submit -> start inferencing -> end inferecing -> set future
-
-    _cnt: ClassVar[int] = 0
-
     # Allow arbitrary types in the Pydantic model
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
     def assign_id(self):
         if self.model_request_id is None:
-            self.model_request_id = self._next_id()
+            self.model_request_id = str(uuid4())
         return self
-
-
-    @classmethod
-    def _next_id(cls) -> int:
-        val = cls._cnt
-        cls._cnt += 1
-        return val
 
 
     def set_response(self, response: dict, executor_node_id: str):

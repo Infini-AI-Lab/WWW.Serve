@@ -54,6 +54,24 @@ async def get_server_metrics(server_url: str) -> Tuple[int, int, float]:
     return int(num_running_reqs), int(num_queue_reqs), token_usage
 
 
+class RecordStats:
+    def __init__(self, server_url):
+        self.stats = []
+        self.server_url = server_url
+        asyncio.create_task(self.record_stats_periodically())
+
+    async def record_stats_periodically(self):
+        while True:
+            num_running_reqs, num_queue_reqs, token_usage = await get_server_metrics(server_url=self.server_url)
+            self.stats.append({
+                "timestamp": time.time(),
+                "num_running_reqs": num_running_reqs,
+                "num_queue_reqs": num_queue_reqs,
+                "token_usage": token_usage
+            })
+            await asyncio.sleep(3)
+
+
 async def update_all_server_stats(clients):
     stats = {}
     for name, (client, _) in clients.items():
@@ -61,22 +79,22 @@ async def update_all_server_stats(clients):
             server_url = str(client.base_url)[:-4]  # .../v1/
             num_running, num_queued, token_usage = await get_server_metrics(server_url)
             stats[name] = {
-                "running": num_running,
-                "queued": num_queued,
-                "usage": token_usage,
+                "num_running_reqs": num_running,
+                "num_queue_reqs": num_queued,
+                "token_usage": token_usage,
             }
         except Exception as e:
             print(f"Error updating stats for {name}: {e}")
             stats[name] = {
-                "running": 999,
-                "queued": 999,
-                "usage": 1.0,
+                "num_running_reqs": 999,
+                "num_queue_reqs": 999,
+                "token_usage": 1.0,
             }
     return stats
 
 
 def choose_server(stats):
-    return min(stats, key=lambda k: (stats[k]["usage"], stats[k]["running"] + stats[k]["queued"]))
+    return min(stats, key=lambda k: (stats[k]["token_usage"], stats[k]["num_running_reqs"] + stats[k]["num_queue_reqs"]))
 
 
 async def dispatch_request(idx, clients, source, problem):
@@ -84,7 +102,8 @@ async def dispatch_request(idx, clients, source, problem):
 
     stats = await update_all_server_stats(clients)
     target_server = choose_server(stats)
-    print(f"Server stats: {stats}")
+    for name, stat in stats.items():
+        print(f"{name}: {stat}")
     print(f"Dispatching request {idx} to {target_server}")
     client = clients[target_server][0]
     model_path = clients[target_server][1]
@@ -99,7 +118,7 @@ async def dispatch_request(idx, clients, source, problem):
             extra_body={
                 "chat_template_kwargs": {"enable_thinking": True},
             },
-            temperature = 0.6,
+            temperature = 0.0,
             top_p = 0.95,
             max_tokens = 8192
         )
@@ -127,7 +146,7 @@ async def dispatch_request(idx, clients, source, problem):
         print(f"Error dispatching request {idx}: {e}")
         response = {
             "idx": idx,
-            "timestamp_list": [submit_time, -1],
+            "timestamp_list": [submit_time, 0],
             "server_stats": stats,
             "response": {
                 "content": "Error occurred",
@@ -139,7 +158,8 @@ async def dispatch_request(idx, clients, source, problem):
                         "total_tokens": 0
                     }
                 },
-                "executor": target_server
+                "source_node": source,
+                "executor_node": target_server
             }
         }
 
@@ -153,22 +173,22 @@ async def run_with_delay(idx, clients, target, problem, delay):
 
 NODES_INFO = {
     "node1": {
-        "base_url": "http://192.168.102.12:30000/v1",
+        "base_url": "http://192.168.102.11:30000/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node2": {
-        "base_url": "http://192.168.102.12:30001/v1",
+        "base_url": "http://192.168.102.11:30001/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node3": {
-        "base_url": "http://192.168.102.12:30002/v1",
+        "base_url": "http://192.168.102.11:30002/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     },
     "node4": {
-        "base_url": "http://192.168.102.12:30003/v1",
+        "base_url": "http://192.168.102.11:30003/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B"
     }
@@ -178,6 +198,11 @@ NODES_INFO = {
 async def main():
     clients = {
         name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"])
+        for name, info in NODES_INFO.items()
+    }
+    await asyncio.sleep(1)
+    stats = {
+        name: RecordStats(info["base_url"][:-4])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
@@ -191,7 +216,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/centralized_test_1/"
+    result_folder = "results/centralized_test_4/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
@@ -201,6 +226,16 @@ async def main():
             ensure_ascii=False,
             indent=4,
         )
+
+    for node, record_stats in stats.items():
+        node_stats = record_stats.stats
+        with open(f"{result_folder}/{node}.json", "w", encoding="utf-8") as f:
+            json.dump(
+                {node: node_stats},
+                f,
+                ensure_ascii=False,
+                indent=4,
+            )
 
 
 if __name__ == "__main__":

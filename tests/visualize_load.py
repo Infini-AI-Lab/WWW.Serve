@@ -1,18 +1,18 @@
 import json
-import numpy as np
 import matplotlib.pyplot as plt
 
 # visualize_item = "num_running_reqs"
 visualize_item = "token_usage"
 
-result_folder = "results/decentralized_test_1"
-# result_folder = "results/centralized_test_1"
+# result_folder = "results/decentralized_test_4"
+# result_folder = "results/centralized_test_4"
+result_folder = "results/single_test_4"
 
 other_nodes_json = [
-    f"{result_folder}/node_1.json",
-    f"{result_folder}/node_2.json",
-    f"{result_folder}/node_3.json",
-    f"{result_folder}/node_4.json"
+    f"{result_folder}/node1.json",
+    f"{result_folder}/node2.json",
+    f"{result_folder}/node3.json",
+    f"{result_folder}/node4.json"
 ]
 
 
@@ -51,7 +51,6 @@ colors = ["#A0A0A0", "#7FB0C0", "#B0C070", "#D95F02"]
 if visualize_item == "num_running_reqs":
     for t, r, c in zip(times, runnings, colors):
         plt.plot(t, r, color=c, linewidth=1.5, linestyle='-')
-    # plt.ylim(0, 10)
     plt.ylabel("Number of Running Requests", fontsize=16)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
@@ -62,7 +61,7 @@ if visualize_item == "num_running_reqs":
 elif visualize_item == "token_usage":
     for t, u, c in zip(times, usages, colors):
         plt.plot(t, u, color=c, linewidth=1.5, linestyle='-')
-    # plt.ylim(0, 100)
+    plt.ylim(0, 105)
     plt.ylabel("Token Usage (%)", fontsize=16)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)

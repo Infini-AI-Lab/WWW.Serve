@@ -100,7 +100,6 @@ class ModelManager:
         gen_params = self.gen_params[model_path]
 
         if DEBUG_MODE:
-            request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
             time_sleep = random.uniform(5, 20)
             await asyncio.sleep(time_sleep)
             simu_prompt_token = random.randint(10, 100)
@@ -118,7 +117,6 @@ class ModelManager:
                     }
                 }
             }
-            request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
             request.set_response(response, executor_node_id=self.node.node_id)
             await self.node.handle_response_request(request)
             # TODO: For now, no grading
@@ -132,7 +130,6 @@ class ModelManager:
 
         else: # LLM Server
             try:
-                request.timestamp_list[1] = time.time()  # Set start inferencing timestamp
                 meta_response = await self.clients[model_path].chat.completions.create(
                     model = model_path,
                     messages = [{
@@ -146,7 +143,6 @@ class ModelManager:
                     top_p = gen_params.get("top_p", 0.95),
                     max_tokens = gen_params.get("max_tokens", 8192)
                 )
-                request.timestamp_list[2] = time.time()  # Set end inferencing timestamp
 
                 response = self._format_response(meta_response)
                 response["source_node"] = request.source_node_addr.node_id
