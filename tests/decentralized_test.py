@@ -36,6 +36,11 @@ async def node_start_join(node: LLMNode, url: str, delay=0):
 async def main():
     ledger = TestCreditLedger()
 
+    node0 = await LLMNode.init_with_ledger(
+        node_id="node0",
+        config_path="configs/sglang_node0.yaml",
+        ledger=ledger,
+    )
     node1 = await LLMNode.init_with_ledger(
         node_id="node1",
         config_path="configs/sglang_node1.yaml",
@@ -59,16 +64,19 @@ async def main():
 
     await asyncio.sleep(1)
 
+    await node0.start()
     await node1.start()
     await node2.start()
     await node3.start()
     await node4.start()
 
+    await node1.join_network(node0.communicator.address.to_url())
     await node2.join_network(node1.communicator.address.to_url())
     await node3.join_network(node2.communicator.address.to_url())
     await node4.join_network(node3.communicator.address.to_url())
 
     nodes = {
+        "node0": node0,
         "node1": node1,
         "node2": node2,
         "node3": node3,
@@ -84,7 +92,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/decentralized_test_4/"
+    result_folder = "results/decentralized_test_14/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:

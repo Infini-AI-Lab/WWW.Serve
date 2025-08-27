@@ -9,7 +9,7 @@ import aiohttp
 from prometheus_client.parser import text_string_to_metric_families
 
 
-async def _get_sglang_metrics(
+async def _get_server_metrics(
     server_url: str,
     metric_list: Optional[List[str]] = None
 ) -> Optional[List[Dict]]:
@@ -35,34 +35,46 @@ async def _get_sglang_metrics(
         return None
 
 
-async def get_server_metrics(server_url: str) -> Tuple[int, int, float]:
+async def get_server_metrics(server_url: str, is_sglang: bool) -> Tuple[int, int, float]:
     """Get server metrics for the model."""
-    metrics = await _get_sglang_metrics(server_url, metric_list=
-                                        ["sglang:num_running_reqs",
-                                        "sglang:num_queue_reqs",
-                                        "sglang:token_usage"])
+    if is_sglang:
+        metrics = await _get_server_metrics(server_url, metric_list=
+                                            ["sglang:num_running_reqs",
+                                            "sglang:num_queue_reqs",
+                                            "sglang:token_usage"])
+    else:
+        metrics = await _get_server_metrics(server_url, metric_list=
+                                            ["vllm:num_requests_running",
+                                            "vllm:num_requests_waiting",
+                                            "vllm:gpu_cache_usage_perc"])
 
     if metrics is None:
         return 999, 999, 1.0
 
     raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
 
-    token_usage = raw_metrics.get("sglang:token_usage", 1.0)
-    num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 999)
-    num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 999)
+    if is_sglang:
+        token_usage = raw_metrics.get("sglang:token_usage", 1.0)
+        num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 999)
+        num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 999)
+    else:
+        token_usage = raw_metrics.get("vllm:gpu_cache_usage_perc", 1.0)
+        num_running_reqs = raw_metrics.get("vllm:num_requests_running", 999)
+        num_queue_reqs = raw_metrics.get("vllm:num_requests_waiting", 999)
 
     return int(num_running_reqs), int(num_queue_reqs), token_usage
 
 
 class RecordStats:
-    def __init__(self, server_url):
+    def __init__(self, server_url, is_sglang):
         self.stats = []
         self.server_url = server_url
+        self.is_sglang = is_sglang
         asyncio.create_task(self.record_stats_periodically())
 
     async def record_stats_periodically(self):
         while True:
-            num_running_reqs, num_queue_reqs, token_usage = await get_server_metrics(server_url=self.server_url)
+            num_running_reqs, num_queue_reqs, token_usage = await get_server_metrics(server_url=self.server_url, is_sglang=self.is_sglang)
             self.stats.append({
                 "timestamp": time.time(),
                 "num_running_reqs": num_running_reqs,
@@ -74,10 +86,10 @@ class RecordStats:
 
 async def update_all_server_stats(clients):
     stats = {}
-    for name, (client, _) in clients.items():
+    for name, (client, _, is_sglang) in clients.items():
         try:
             server_url = str(client.base_url)[:-4]  # .../v1/
-            num_running, num_queued, token_usage = await get_server_metrics(server_url)
+            num_running, num_queued, token_usage = await get_server_metrics(server_url, is_sglang=is_sglang)
             stats[name] = {
                 "num_running_reqs": num_running,
                 "num_queue_reqs": num_queued,
@@ -175,34 +187,38 @@ NODES_INFO = {
     "node1": {
         "base_url": "http://192.168.102.11:30000/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-8B"
+        "model_path": "Qwen/Qwen3-32B",
+        "is_sglang": True
     },
     "node2": {
-        "base_url": "http://192.168.102.11:30001/v1/",
+        "base_url": "http://192.168.102.21:30001/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-8B"
+        "model_path": "Qwen/Qwen3-8B",
+        "is_sglang": True
     },
     "node3": {
-        "base_url": "http://192.168.102.11:30002/v1/",
+        "base_url": "http://192.168.102.12:30002/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-8B"
+        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/deepseek-ai--DeepSeek-R1-Distill-Qwen-7B",
+        "is_sglang": False
     },
     "node4": {
-        "base_url": "http://192.168.102.11:30003/v1/",
+        "base_url": "http://192.168.102.19:30003/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-8B"
+        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/meta-llama--Llama-3.1-8B",
+        "is_sglang": False
     }
 }
 
 
 async def main():
     clients = {
-        name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"])
+        name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"], info["is_sglang"])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
     stats = {
-        name: RecordStats(info["base_url"][:-4])
+        name: RecordStats(info["base_url"][:-4], is_sglang=info["is_sglang"])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
@@ -216,7 +232,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/centralized_test_4/"
+    result_folder = "results/centralized_test_10/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
