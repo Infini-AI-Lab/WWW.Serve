@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .request import ModelRequest
 
 
-INPUT_WINDOW_SIZE = 60             # Input window size (s)
+INPUT_WINDOW_SIZE = 30             # Input window size (s)
 
 
 class RequestManager:

@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 # visualize_item = "num_running_reqs"
 visualize_item = "token_usage"
 
-result_folder = "results/decentralized_test_13"
-# result_folder = "results/centralized_test_10"
-# result_folder = "results/single_test_10"
+result_folder = "results/decentralized_test_6"
+# result_folder = "results/centralized_test_19"
+# result_folder = "results/single_test_19"
 
 other_nodes_json = [
     f"{result_folder}/node1.json",
@@ -29,6 +29,11 @@ def load_model_data(file_path):
         token.append(item["token_usage"]*100)
     start_time = time[0]
     time = [t - start_time for t in time]
+
+    time = [t for t in time if t < 1100]
+    len_time = len(time)
+    running = running[:len_time]
+    token = token[:len_time]
 
     return time, running, token
 

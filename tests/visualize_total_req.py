@@ -2,8 +2,8 @@ import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# result_folder = "results/decentralized_test_1"
-result_folder = "results/centralized_test_1"
+result_folder = "results/decentralized_test_18"
+# result_folder = "results/centralized_test_1"
 
 files = [
     f"{result_folder}/node1.json",

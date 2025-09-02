@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-result_folder = "results/decentralized_test_14"
-# result_folder = "results/centralized_test_10"
-# result_folder = "results/single_test_10"
+result_folder = "results/decentralized_test_19"
+# result_folder = "results/centralized_test_19"
+# result_folder = "results/single_test_19"
 
 json_path = f"{result_folder}/result.json"
 
@@ -18,7 +18,7 @@ def get_latency(json_path):
     executor_list = []
     error_idx = set()
     for idx, item in enumerate(data):
-        if item["response"]["meta_data"]["finish_reason"] == "TIMEOUT":
+        if item["response"]["meta_data"]["finish_reason"] not in ["stop", "length"]:
             error_idx.add(idx)
             continue
         latency = item["timestamp_list"][-1] - item["timestamp_list"][0]

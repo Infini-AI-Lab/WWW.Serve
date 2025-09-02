@@ -105,7 +105,9 @@ async def update_all_server_stats(clients):
     return stats
 
 
-def choose_server(stats):
+def choose_server(stats, source):
+    if source in stats and stats[source]["token_usage"] < 0.7:
+        return source
     return min(stats, key=lambda k: (stats[k]["token_usage"], stats[k]["num_running_reqs"] + stats[k]["num_queue_reqs"]))
 
 
@@ -113,7 +115,7 @@ async def dispatch_request(idx, clients, source, problem):
     submit_time = time.time()
 
     stats = await update_all_server_stats(clients)
-    target_server = choose_server(stats)
+    target_server = choose_server(stats, source)
     for name, stat in stats.items():
         print(f"{name}: {stat}")
     print(f"Dispatching request {idx} to {target_server}")
@@ -185,28 +187,28 @@ async def run_with_delay(idx, clients, target, problem, delay):
 
 NODES_INFO = {
     "node1": {
-        "base_url": "http://192.168.102.11:30000/v1/",
+        "base_url": "http://192.168.102.20:30000/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-32B",
+        "model_path": "Qwen/Qwen3-8B",
         "is_sglang": True
     },
     "node2": {
-        "base_url": "http://192.168.102.21:30001/v1/",
+        "base_url": "http://192.168.102.20:30001/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B",
         "is_sglang": True
     },
     "node3": {
-        "base_url": "http://192.168.102.12:30002/v1/",
+        "base_url": "http://192.168.102.20:30002/v1/",
         "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/deepseek-ai--DeepSeek-R1-Distill-Qwen-7B",
-        "is_sglang": False
+        "model_path": "Qwen/Qwen3-8B",
+        "is_sglang": True
     },
     "node4": {
-        "base_url": "http://192.168.102.19:30003/v1/",
+        "base_url": "http://192.168.102.20:30003/v1/",
         "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/meta-llama--Llama-3.1-8B",
-        "is_sglang": False
+        "model_path": "Qwen/Qwen3-8B",
+        "is_sglang": True
     }
 }
 
@@ -232,7 +234,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/centralized_test_10/"
+    result_folder = "results/centralized_test_19/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:

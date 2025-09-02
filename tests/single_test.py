@@ -150,28 +150,28 @@ async def submit_with_delay(idx, client_name, client, model_path, problem, delay
 
 NODES_INFO = {
     "node1": {
-        "base_url": "http://192.168.102.11:30000/v1/",
+        "base_url": "http://192.168.102.20:30000/v1/",
         "api_key": "None",
-        "model_path": "Qwen/Qwen3-32B",
+        "model_path": "Qwen/Qwen3-8B",
         "is_sglang": True
     },
     "node2": {
-        "base_url": "http://192.168.102.21:30001/v1/",
+        "base_url": "http://192.168.102.20:30001/v1/",
         "api_key": "None",
         "model_path": "Qwen/Qwen3-8B",
         "is_sglang": True
     },
     "node3": {
-        "base_url": "http://192.168.102.12:30002/v1/",
+        "base_url": "http://192.168.102.20:30002/v1/",
         "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/deepseek-ai--DeepSeek-R1-Distill-Qwen-7B",
-        "is_sglang": False
+        "model_path": "Qwen/Qwen3-8B",
+        "is_sglang": True
     },
     "node4": {
-        "base_url": "http://192.168.102.19:30003/v1/",
+        "base_url": "http://192.168.102.20:30003/v1/",
         "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/meta-llama--Llama-3.1-8B",
-        "is_sglang": False
+        "model_path": "Qwen/Qwen3-8B",
+        "is_sglang": True
     }
 }
 
@@ -198,7 +198,7 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/single_test_11/"
+    result_folder = "results/single_test_19/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:

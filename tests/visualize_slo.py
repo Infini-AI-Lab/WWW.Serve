@@ -3,16 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-result_folder_centralize = "results/decentralized_test_10"
-result_folder_decentralize = "results/centralized_test_10"
-result_folder_single = "results/single_test_10"
+result_folder_centralize = "results/decentralized_test_19"
+result_folder_decentralize = "results/centralized_test_19"
+result_folder_single = "results/single_test_19"
 
 file_centralize = f"{result_folder_centralize}/result.json"
 file_decentralize = f"{result_folder_decentralize}/result.json"
 file_single = f"{result_folder_single}/result.json"
 
 
-slo_thresholds = [10*i for i in range(10, 30)]
+slo_thresholds = [10*i for i in range(20, 51)]
 
 def compute_slo_attainment(json_file, slo_thresholds):
     with open(json_file, "r") as f:
