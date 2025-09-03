@@ -195,7 +195,6 @@ cython_debug/
 
 
 datasets/
-configs/
 scripts/
 models/
 results/

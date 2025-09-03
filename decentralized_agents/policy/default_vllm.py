@@ -1,46 +1,24 @@
 from typing import Dict, List, Optional, Tuple
 import aiohttp
+import random
 from prometheus_client.parser import text_string_to_metric_families
 
 
 from .base import (
-    # BaseDispatchPolicy,
     BaseRoutingPolicy,
     BaseModelPolicy
 )
 
 
-
-# class DefaultVllmDispatchPolicy(BaseDispatchPolicy):
-#     """Default node policy for vLLM."""
-
-#     async def dispatch(self, node, request, source) -> Tuple[Optional[str], Optional[str]]:
-#         """Dispatch a single request to the appropriate model."""
-#         selected_model = node.select_local_idle_model()
-
-#         if selected_model:
-#             return node.node_id, selected_model
-
-#         target_node_id = await node.communicator.select_node_from_peers()
-#         if target_node_id:
-#             return target_node_id, None
-
-#         selected_model = node.select_local_model_for_queue()
-#         if selected_model:
-#             return node.node_id, selected_model
-
-#         return None, None
-
-
-
 class DefaultVllmRoutingPolicy(BaseRoutingPolicy):
     """Default communicator policy for vLLM."""
-    # TODO: not elegant!!!
     async def can_accept_route(self, node) -> bool:
         """Whether to accept a route for the request."""
-        return (await node.request_manager.get_queue_size("user") == 0) \
-                and (node.select_local_idle_model() is not None)
-
+        if random.random() < node.accept_frequency:
+            return (await node.request_manager.get_queue_size("user") == 0) \
+                    and (node.select_local_idle_model() is not None)
+        else:
+            return False
 
 
 class DefaultVllmModelPolicy(BaseModelPolicy):

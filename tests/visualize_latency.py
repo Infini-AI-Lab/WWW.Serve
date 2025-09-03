@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-result_folder = "results/decentralized_test_19"
+result_folder = "results/decentralized_test_20"
 # result_folder = "results/centralized_test_19"
 # result_folder = "results/single_test_19"
 
@@ -14,7 +14,6 @@ def get_latency(json_path):
         data = json.load(f)
 
     latency_list = []
-    source_list = []
     executor_list = []
     error_idx = set()
     for idx, item in enumerate(data):
@@ -24,11 +23,10 @@ def get_latency(json_path):
         latency = item["timestamp_list"][-1] - item["timestamp_list"][0]
         latency_list.append(latency)
         executor_list.append(item["response"]["executor_node"])
-        source_list.append(item["response"]["source_node"])
 
-    return latency_list, executor_list, source_list, error_idx
+    return latency_list, executor_list, error_idx
 
-latency, executor_list, source_list, err_set = get_latency(json_path)
+latency, executor_list, err_set = get_latency(json_path)
 
 n = len(latency)
 idx = np.arange(n)

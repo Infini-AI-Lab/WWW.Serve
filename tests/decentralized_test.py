@@ -3,7 +3,6 @@ from decentralized_agents.core_node import LLMNode
 from decentralized_agents.test_credit_ledger import TestCreditLedger
 import asyncio
 import json
-import random
 import os
 import time
 
@@ -84,7 +83,7 @@ async def main():
     }
 
     ##### Testing code #####
-    with open("results/poisson_times.json", "r", encoding="utf-8") as f:
+    with open("results/poisson_times_6.json", "r", encoding="utf-8") as f:
         poisson_times = json.load(f)
 
     tasks = [
@@ -98,7 +97,7 @@ async def main():
 
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/decentralized_test_19/"
+    result_folder = "results/decentralized_test_20/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:

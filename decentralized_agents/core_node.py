@@ -3,7 +3,7 @@ from pathlib import Path
 import asyncio
 import yaml
 import time
-
+import random
 
 # from .credit_ledger import CreditLedger
 from .request import ModelRequest
@@ -34,6 +34,10 @@ class LLMNode:
 
         self.policy = PolicyManager(policy=self.config["server_params"]["policy"])
 
+        self.offload_frequency = self.config["server_params"]["offload_frequency"]
+        self.queue_frequency = self.config["server_params"]["queue_frequency"]
+        self.accept_frequency = self.config["server_params"]["accept_frequency"]
+
         self.pending_futures: Dict[str, Tuple[asyncio.Future, asyncio.Task]] = {}  # request_id -> (future, timer)
 
         self.lock = asyncio.Lock()
@@ -52,10 +56,7 @@ class LLMNode:
             node=self,
             models_config=self.config["models"],
         )
-        self.request_manager = RequestManager(
-            node=self,
-            models_config=self.config["models"],
-        )
+        self.request_manager = RequestManager(node=self)
         self.credit_ledger: "TestCreditLedger" = None
 
     # @classmethod
@@ -311,9 +312,6 @@ class LLMNode:
     def select_local_idle_model(self):
         """Select a local model with no queue requests."""
         for model_path in self.models.clients:
-            if not self.models.model_dispatch_available(model_path):
-                continue
-
             server_stats = self.models.get_server_stats(model_path)
             token_usage = server_stats["token_usage"]
             idle_usage = self.models.dispatch_params.get("target_token_usage", DEFAULT_IDLE_USAGE_THRESHOLD)
@@ -326,9 +324,6 @@ class LLMNode:
         """Select a local model for queuing the request."""
         queued = {}
         for model_path in self.models.clients:
-            if not self.models.model_dispatch_available(model_path):
-                continue
-
             server_stats = self.models.get_server_stats(model_path)
             num_queue_reqs = server_stats["num_queue_reqs"]
             queued[model_path] = num_queue_reqs
@@ -347,23 +342,39 @@ class LLMNode:
         avg_usage = load["avg_token_usage"]
         avg_target_usage = load["avg_target_usage"]
 
-        target = 100 * max((avg_target_usage - avg_usage) / avg_target_usage, 0.0)
+        if avg_usage <= avg_target_usage * 0.5:
+            load_score = 3
+        elif avg_usage <= avg_target_usage * 0.8:
+            load_score = 2
+        elif avg_usage <= avg_target_usage:
+            load_score = 1
+        else:
+            load_score = 0
+
+        user_queue_len = await self.request_manager.get_queue_size("user")
+        node_queue_len = await self.request_manager.get_queue_size("node")
+        total_queue_len = user_queue_len + node_queue_len
+
+        if total_queue_len == 0:
+            queue_score = 1
+        else:
+            queue_score = 0
 
         cur_stake = await self.credit_ledger.get_stake(self.node_id)
         cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
-
-        delta = target - cur_stake
-        if abs(delta) < 1e-3:
-            return
+        target_stake = load_score + queue_score  # [0, 4]
+        delta = target_stake - cur_stake
 
         if delta > 0:
-            amount = min(delta, cur_credit)
+            amount = min(delta, cur_credit, 2)
             if amount > 0:
                 _ = await self.credit_ledger.stake(self.node_id, amount)
+                print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
         else:
-            amount = min(-delta, cur_stake)
+            amount = min(-delta, cur_stake, 2)
             if amount > 0:
                 _ = await self.credit_ledger.unstake(self.node_id, amount)
+                print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
 
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
@@ -374,7 +385,7 @@ class LLMNode:
             return self.node_id, selected_model
 
         # 2. Credit-based routing
-        if self.credit_ledger:
+        if self.credit_ledger and random.random() < self.offload_frequency:
             if await self.credit_ledger.get_account_credit(self.node_id) > 0:
                 # Do not include nodes in the route path
                 exclude_nodes = [node_id for node_id, _ in request.route_path]
@@ -388,9 +399,8 @@ class LLMNode:
                     if target_node_id:
                         return target_node_id, None
 
-        else:
-            # 3. Fallback to local model selection for queuing
-            # Only for single-deployment
+        # 3. Fallback to local model selection for queuing
+        if random.random() < self.queue_frequency:
             selected_model = self.select_local_model_for_queue()
             if selected_model:
                 return self.node_id, selected_model
@@ -407,7 +417,7 @@ class LLMNode:
                 await self.models.update_server_stats()
                 await self._auto_adjust_stake()
                 await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
-            
+
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in gossip/metric loop: {e}")
                 await asyncio.sleep(1)

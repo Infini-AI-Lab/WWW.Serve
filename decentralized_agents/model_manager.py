@@ -49,7 +49,6 @@ class ModelManager:
                 "num_running_reqs": 0,
                 "num_queue_reqs": 0,
                 "token_usage": 0.0,
-                "max_requests_per_window": self.dispatch_params[model_path].get("min_requests_per_window", DEFAULT_MIN_REQUESTS_PER_WINDOW)
             }
             self.server_stats_history[model_path] = []
             self.base_urls[model_path] = base_url
@@ -68,35 +67,10 @@ class ModelManager:
                 }
             }
         }
-    
-
-    def _calculate_max_requests_per_window(self, model_path):
-        """Calculate the maximum number of requests per window based on token usage."""
-        target_usage = self.dispatch_params[model_path].get("target_token_usage", DEFAULT_TARGET_TOKEN_USAGE)
-        min_reqs = self.dispatch_params[model_path].get("min_requests_per_window", DEFAULT_MIN_REQUESTS_PER_WINDOW)
-        max_reqs = self.dispatch_params[model_path].get("max_requests_per_window", DEFAULT_MAX_REQUESTS_PER_WINDOW)
-
-        token_usage = self.server_stats[model_path]["token_usage"]
-        usage_gap = max(0.0, target_usage - token_usage)
-        scaling_factor = usage_gap / target_usage
-
-        estimated_reqs = int(min_reqs + scaling_factor * (max_reqs - min_reqs))
-
-        return estimated_reqs
-
-
-    def model_dispatch_available(self, model_path: str) -> bool:
-        """Check if the model is available for dispatch based on requests_per_window."""
-        req_cnt = self.node.request_manager.get_windowed_request_count(model_path)
-        max_req_per_window = self.server_stats[model_path]["max_requests_per_window"]
-        if req_cnt >= max_req_per_window:
-            return False
-        return True
 
 
     async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = True):
         """Inferencing user input with the specified model."""
-        self.node.request_manager.record_request_start(model_path, request.model_request_id)
         gen_params = self.gen_params[model_path]
 
         if DEBUG_MODE:
@@ -190,8 +164,6 @@ class ModelManager:
                 self.server_stats[model_path]["num_running_reqs"] = num_running_reqs
                 self.server_stats[model_path]["num_queue_reqs"] = num_queue_reqs
                 self.server_stats[model_path]["token_usage"] = token_usage
-
-                self.server_stats[model_path]["max_requests_per_window"] = self._calculate_max_requests_per_window(model_path)
 
                 self.server_stats_history[model_path].append({
                     "timestamp": time.time(),

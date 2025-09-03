@@ -1,8 +1,6 @@
 import contextlib
-import time
 import asyncio
-from typing import Tuple, Dict, TYPE_CHECKING
-from collections import deque
+from typing import Tuple, TYPE_CHECKING
 
 from .async_queue import AsyncQueue
 
@@ -16,38 +14,11 @@ INPUT_WINDOW_SIZE = 30             # Input window size (s)
 
 
 class RequestManager:
-    def __init__(self, node: "LLMNode", models_config):
+    def __init__(self, node: "LLMNode"):
         self.node = node
 
         self.user_request_queue = AsyncQueue()
         self.node_request_queue = AsyncQueue()
-
-        self.req_input_windows: Dict[str, deque[Tuple]] = {}  # model_path -> [(request_id, timestamp)]
-
-        for model in models_config:
-            model_path = model["model_path"]
-            self.req_input_windows[model_path] = deque()
-
-
-    def record_request_start(self, model_path: str, request_id: str):
-        """Record the time for a request sending to a specific model within the window."""
-        current_time = time.time()
-        dq = self.req_input_windows.get(model_path)
-        dq.append((request_id, current_time))
-
-        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
-            dq.popleft()
-
-
-    def get_windowed_request_count(self, model_path: str) -> int:
-        """Get the number of requests sending to a specific model within the window."""
-        current_time = time.time()
-        dq = self.req_input_windows.get(model_path)
-
-        while dq and (current_time - dq[0][1]) > INPUT_WINDOW_SIZE:
-            dq.popleft()
-        
-        return len(dq)
 
 
     async def enque_front_request(self, request: "ModelRequest", queue: str = "user"):

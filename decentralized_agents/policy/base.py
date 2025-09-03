@@ -6,16 +6,6 @@ if TYPE_CHECKING:
     from ..core_node import LLMNode
 
 
-# class BaseDispatchPolicy(ABC):
-#     """Base class for node policies."""
-
-#     @abstractmethod
-#     async def dispatch(self, node: "LLMNode", request, source) -> Tuple[Optional[str], Optional[str]]:
-#         """Dispatch a single request to the appropriate model."""
-#         ...
-
-
-
 class BaseRoutingPolicy(ABC):
     """Base class for communicator policies."""
 
@@ -23,7 +13,6 @@ class BaseRoutingPolicy(ABC):
     async def can_accept_route(self, node: "LLMNode") -> bool:
         """Whether to accept a route for the request."""
         ...
-
 
 
 class BaseModelPolicy(ABC):
