@@ -314,7 +314,7 @@ class LLMNode:
         for model_path in self.models.clients:
             server_stats = self.models.get_server_stats(model_path)
             token_usage = server_stats["token_usage"]
-            idle_usage = self.models.dispatch_params.get("target_token_usage", DEFAULT_IDLE_USAGE_THRESHOLD)
+            idle_usage = self.models.dispatch_params[model_path].get("target_token_usage", DEFAULT_IDLE_USAGE_THRESHOLD)
             if token_usage < idle_usage:
                 return model_path
         return None

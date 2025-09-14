@@ -9,9 +9,9 @@ server_params:
   ip: 127.0.0.1
   port: 5777
   policy: default_sglang
-  offload_frequency: 0.8
-  queue_frequency: 0.2
-  accept_frequency: 0.8
+  offload_frequency: 1.0
+  queue_frequency: 0.0
+  accept_frequency: 0.0
 
 ledger_params:
   initial_credit: 1000.0
@@ -19,7 +19,7 @@ ledger_params:
 
 models:
   - model_path: TEST
-    base_url: http://192.168.102.11:29999
+    base_url: http://192.168.102.19:29999
     api_key: None
 
     gen_params:
@@ -28,4 +28,4 @@ models:
       top_p: 0.95
 
     dispatch_params:
-      target_token_usage: 0.1
+      target_token_usage: -1

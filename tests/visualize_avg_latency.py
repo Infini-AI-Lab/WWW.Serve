@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
-result_folder_centralize = "results/decentralized_test_6"
-result_folder_decentralize = "results/centralized_test_6"
-result_folder_single = "results/single_test_6"
+result_folder_centralize = "results/decentralized_test_1"
+result_folder_decentralize = "results/centralized_test_1"
+result_folder_single = "results/single_test_1"
 
 file_centralize = f"{result_folder_centralize}/result.json"
 file_decentralize = f"{result_folder_decentralize}/result.json"

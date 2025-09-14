@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 # visualize_item = "num_running_reqs"
 visualize_item = "token_usage"
 
-result_folder = "results/decentralized_test_6"
-# result_folder = "results/centralized_test_19"
-# result_folder = "results/single_test_19"
+# result_folder = "results/decentralized_test_1"
+# result_folder = "results/centralized_test_4"
+result_folder = "results/single_test_1"
 
 other_nodes_json = [
     f"{result_folder}/node1.json",

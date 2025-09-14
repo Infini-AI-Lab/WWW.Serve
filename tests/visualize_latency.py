@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-result_folder = "results/decentralized_test_20"
+# result_folder = "results/decentralized_test_20"
 # result_folder = "results/centralized_test_19"
-# result_folder = "results/single_test_19"
+result_folder = "results/single_test_1"
 
 json_path = f"{result_folder}/result.json"
 

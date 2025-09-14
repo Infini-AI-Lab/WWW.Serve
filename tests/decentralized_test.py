@@ -83,7 +83,7 @@ async def main():
     }
 
     ##### Testing code #####
-    with open("results/poisson_times_6.json", "r", encoding="utf-8") as f:
+    with open("results/poisson_times_8.json", "r", encoding="utf-8") as f:
         poisson_times = json.load(f)
 
     tasks = [
@@ -97,7 +97,7 @@ async def main():
 
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/decentralized_test_20/"
+    result_folder = "results/decentralized_test_8_4/"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
