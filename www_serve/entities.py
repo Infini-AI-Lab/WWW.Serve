@@ -4,7 +4,14 @@ from typing import List, Tuple, Dict, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
 
-from .block import CreditBlock
+
+class CreditAccount(BaseModel):
+    node_id: str
+    pubkey: Optional[str] = None
+    credit: float = 0.0
+    staked: float = 0.0
+
+    model_config = dict(arbitrary_types_allowed=True)
 
 
 
@@ -24,13 +31,11 @@ class Address(BaseModel):
         return cls(node_id="UNKNOWN", ip=parts[0], port=int(parts[1]))
 
 
+
 class PeerInfo(BaseModel):
     """Information of a peer node."""
     node_id: str
     address: Address
-    # last_update: float = Field(default_factory=time.time)
-    # fail_count: int = 0
-
     last_seen: float = 0.0
 
     model_config = dict(arbitrary_types_allowed=True)
@@ -39,13 +44,8 @@ class PeerInfo(BaseModel):
 
 class NodeRequest(BaseModel):
     type: Literal["sync", "probe", "broadcast"]
-
     known_peers: Optional[List[PeerInfo]] = None
-    known_blocks: Optional[List[CreditBlock]] = None
     accept_request: Optional[bool] = None
-
-    accept_block: Optional[bool] = None
-
     timestamp: float = Field(default_factory=time.time)
 
     model_config = dict(arbitrary_types_allowed=True)
@@ -55,14 +55,11 @@ class NodeRequest(BaseModel):
 class ModelRequest(BaseModel):
     type: Literal["request", "response"] = "request"
     model_request_id: Optional[str] = None
-
     source_node_addr: Address
     executor_node_id: Optional[str] = None
     route_path: List[Tuple[str, float]] = []  # (node_id, timestamp)
-
     user_input: Optional[str] = None
     model_result: Optional[Dict] = None
-
     result_scores: Optional[List[float]] = None
 
     # Allow arbitrary types in the Pydantic model
@@ -92,10 +89,8 @@ class EmptyRequest(BaseModel):
 class CommRequest(BaseModel):
     sender: Address
     receiver: Address
-
     type: Literal["NodeRequest", "ModelRequest", "EmptyRequest"]
     payload: Annotated[Union[NodeRequest, ModelRequest, EmptyRequest], Field(discriminator='type')]
-
     timestamp: float = Field(default_factory=time.time)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

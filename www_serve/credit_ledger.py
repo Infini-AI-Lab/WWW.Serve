@@ -1,20 +1,18 @@
-from decentralized_agents.block import CreditAccount
+from .entities import CreditAccount
 from typing import Dict, List
 import random
-import hashlib
 import time
 import aiorwlock
 
 
-class TestCreditLedger:
+
+class CreditLedger:
     def __init__(self):
         self.accounts: Dict[str, CreditAccount] = {}
         self.accounts_lock = aiorwlock.RWLock()
 
         self.stakes: Dict[str, float] = {}  # node_id -> staked amount
         self.stakes_lock = aiorwlock.RWLock()
-
-        # asyncio.create_task(self.auto_stake_loop())
 
 
     async def create_account(self, node_id: str, initial_credit: float, initial_staked: float) -> bool:
@@ -110,24 +108,6 @@ class TestCreditLedger:
         if total == 0:
             return []
 
-        # seed_int = int(hashlib.sha256(seed.encode()).hexdigest(), 16)
-        # rng = random.Random(seed_int)
-        # TODO: For now, do not use seed
         rng = random.Random(time.time())
 
         return rng.choices(node_ids, weights=weights, k=k)
-
-
-    # async def auto_stake_loop(self):
-    #     while True:
-    #         await asyncio.sleep(5)
-    #         async with self.accounts_lock:
-    #             for node_id, account in self.accounts.items():
-    #                 if account.credit > account.staked:
-    #                     stake_amount = (account.credit - account.staked) / 2
-    #                     async with self.stakes_lock:
-    #                         self.stakes[node_id] += stake_amount
-    #                         account.credit -= stake_amount
-    #                         account.staked += stake_amount
-                            
-

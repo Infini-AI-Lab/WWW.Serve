@@ -5,8 +5,7 @@ import yaml
 import time
 import random
 
-# from .credit_ledger import CreditLedger
-from .request import ModelRequest
+from .entities import ModelRequest
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
 from .request_manager import RequestManager
@@ -14,7 +13,7 @@ from .policy_manager import PolicyManager
 
 
 if TYPE_CHECKING:
-    from .test_credit_ledger import TestCreditLedger
+    from .credit_ledger import CreditLedger
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
@@ -57,25 +56,11 @@ class LLMNode:
             models_config=self.config["models"],
         )
         self.request_manager = RequestManager(node=self)
-        self.credit_ledger: "TestCreditLedger" = None
-
-    # @classmethod
-    # async def init(cls, node_id: str, config_path: Union[Path, str], is_genesis: bool = False):
-    #     """Initialize the LLMNode with the given configuration."""
-    #     node = cls(node_id=node_id, config_path=config_path)
-
-    #     if is_genesis:
-    #         node.credit_ledger = await CreditLedger.init_genesis(node)
-    #         node.credit_ledger.start()
-    #     else:
-    #         # Only initialized when joining the network
-    #         node.credit_ledger = None
-
-    #     return node
+        self.credit_ledger: "CreditLedger" = None
     
 
     @classmethod
-    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "TestCreditLedger" = None):
+    async def init_with_ledger(cls, node_id: str, config_path: Union[Path, str], ledger: "CreditLedger" = None):
         """Initialize the LLMNode with the given configuration."""
         node = cls(node_id=node_id, config_path=config_path)
         if ledger:
@@ -86,12 +71,6 @@ class LLMNode:
                 initial_staked=node.config["ledger_params"]["initial_staked"]
             )
         return node
-
-
-    # async def init_ledger_sync(self, block_list: List[Dict]):
-    #     """Initialize the credit ledger with the provided block list."""
-    #     self.credit_ledger = await CreditLedger.init_sync(self, block_list)
-    #     self.credit_ledger.start()
 
 
     def create_task(self, coro) -> asyncio.Task:
@@ -107,7 +86,6 @@ class LLMNode:
         self.create_task(self._listen_loop())
         self.create_task(self._dispatch_loop())
         self.create_task(self._gossip_metric_loop())
-        # Credit ledger will be started in init() or init_ledger_sync()
 
 
     async def stop(self):
@@ -116,8 +94,6 @@ class LLMNode:
             task.cancel()
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()
-        # if self.credit_ledger:
-        #     self.credit_ledger.stop()
         self.communicator.stop()
         print(f"[{self.node_id}  ] Node stopped.")
     

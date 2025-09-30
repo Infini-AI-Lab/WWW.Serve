@@ -1,12 +1,10 @@
-from .policy.default_sglang import (
-    # DefaultSGLangDispatchPolicy,
+from .policies.default_sglang import (
     DefaultSGLangRoutingPolicy,
     DefaultSGLangModelPolicy
 )
 
 
-from .policy.default_vllm import (
-    # DefaultVllmDispatchPolicy,
+from .policies.default_vllm import (
     DefaultVllmRoutingPolicy,
     DefaultVllmModelPolicy
 )
@@ -17,11 +15,9 @@ class PolicyManager:
         """Initialize the PolicyManager with a specific policy."""
 
         if policy == "default_sglang":
-            # self.dispatch_policy = DefaultSGLangDispatchPolicy()
             self.routing_policy = DefaultSGLangRoutingPolicy()
             self.model_policy = DefaultSGLangModelPolicy()
         elif policy == "default_vllm":
-            # self.dispatch_policy = DefaultVllmDispatchPolicy()
             self.routing_policy = DefaultVllmRoutingPolicy()
             self.model_policy = DefaultVllmModelPolicy()
         else:

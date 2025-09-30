@@ -1,21 +1,16 @@
 from typing import Union, List, Dict, TYPE_CHECKING
 from openai import AsyncOpenAI
-import asyncio
-import random
 import time
 
 
 if TYPE_CHECKING:
     from .core_node import LLMNode
-    from .request import ModelRequest
+    from .entities import ModelRequest
 
 
 DEFAULT_TARGET_TOKEN_USAGE = 0.5
 DEFAULT_MIN_REQUESTS_PER_WINDOW = 0
 DEFAULT_MAX_REQUESTS_PER_WINDOW = 5
-
-DEBUG_MODE = False  # If True, simulate model responses instead of calling actual servers.
-
 
 
 class ModelManager:
@@ -73,24 +68,25 @@ class ModelManager:
         """Inferencing user input with the specified model."""
         gen_params = self.gen_params[model_path]
 
-        if DEBUG_MODE:
-            time_sleep = random.uniform(5, 20)
-            await asyncio.sleep(time_sleep)
-            simu_prompt_token = random.randint(10, 100)
-            simu_completion_token = random.randint(1, 32768)
-            response = {
-                "source_node": request.source_node_addr.node_id,
-                "executor_node": self.node.node_id,
-                "content": "Simulated response.",
-                "meta_data": {
-                    "finish_reason": "Simulated",
-                    "usage": {
-                        "prompt_tokens": simu_prompt_token,
-                        "completion_tokens": simu_completion_token,
-                        "total_tokens": simu_prompt_token + simu_completion_token
-                    }
-                }
-            }
+        try:
+            meta_response = await self.clients[model_path].chat.completions.create(
+                model = model_path,
+                messages = [{
+                    "role": "user",
+                    "content": request.user_input
+                }],
+                extra_body={
+                    "chat_template_kwargs": {"enable_thinking": enable_thinking},
+                },
+                temperature = gen_params.get("temperature", 0.6),
+                top_p = gen_params.get("top_p", 0.95),
+                max_tokens = gen_params.get("max_tokens", 8192)
+            )
+
+            response = self._format_response(meta_response)
+            response["source_node"] = request.source_node_addr.node_id
+            response["executor_node"] = self.node.node_id
+
             request.set_response(response, executor_node_id=self.node.node_id)
             await self.node.handle_response_request(request)
             # TODO: For now, no grading
@@ -102,53 +98,22 @@ class ModelManager:
             #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
             #     await self.node.handle_response_request(request)
 
-        else: # LLM Server
-            try:
-                meta_response = await self.clients[model_path].chat.completions.create(
-                    model = model_path,
-                    messages = [{
-                        "role": "user",
-                        "content": request.user_input
-                    }],
-                    extra_body={
-                        "chat_template_kwargs": {"enable_thinking": enable_thinking},
-                    },
-                    temperature = gen_params.get("temperature", 0.6),
-                    top_p = gen_params.get("top_p", 0.95),
-                    max_tokens = gen_params.get("max_tokens", 8192)
-                )
-
-                response = self._format_response(meta_response)
-                response["source_node"] = request.source_node_addr.node_id
-                response["executor_node"] = self.node.node_id
-
-                request.set_response(response, executor_node_id=self.node.node_id)
-                await self.node.handle_response_request(request)
-                # TODO: For now, no grading
-                # request_with_scores = await self.node.grading_request(request)
-                # if request_with_scores:
-                #     print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
-                #     await self.node.handle_response_request(request_with_scores)
-                # else:
-                #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
-                #     await self.node.handle_response_request(request)
-
-            except Exception as e:
-                response = {
-                    "source_node": request.source_node_addr.node_id,
-                    "executor_node": self.node.node_id,
-                    "content": str(e),
-                    "meta_data": {
-                        "finish_reason": "ERROR",
-                        "usage": {
-                            "prompt_tokens": 0,
-                            "completion_tokens": 0,
-                            "total_tokens": 0
-                        }
+        except Exception as e:
+            response = {
+                "source_node": request.source_node_addr.node_id,
+                "executor_node": self.node.node_id,
+                "content": str(e),
+                "meta_data": {
+                    "finish_reason": "ERROR",
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
                     }
                 }
-                request.set_response(response, executor_node_id=self.node.node_id)
-                await self.node.handle_response_request(request)
+            }
+            request.set_response(response, executor_node_id=self.node.node_id)
+            await self.node.handle_response_request(request)
 
 
     def get_server_stats(self, model_path: str) -> Dict:

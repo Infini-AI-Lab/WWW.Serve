@@ -5,7 +5,7 @@ import time
 import json
 
 
-from .request import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest
+from .entities import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest
 
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class ZmqCommunicator:
         )
 
         if response:
-            await self._sync_peers_and_blocks(response.payload.known_peers, response.payload.known_blocks)
+            await self._sync_peers(response.payload.known_peers)
             print(f"[{self.node.node_id}  ] Joined network at {peer_url}")
         else:
             print(f"[{self.node.node_id}  ] Failed to join network at {peer_url}")
@@ -179,50 +179,10 @@ class ZmqCommunicator:
                 return node_id
         return None
 
-    # TODO: Compatible with non-credit ledger nodes
+
     async def select_node_from_peers(self):
         """Probe all peers and return the first one that accepts."""
         return await self.select_node_from_candidates(list(self.peers.keys()))
-
-
-    # async def broadcast_block(self, block):
-    #     """Broadcast a new block to all peers."""
-    #     if not self.peers:
-    #         return True
-
-    #     tasks = []
-    #     for peer in self.peers.values():
-    #         if peer.address == self.address:
-    #             continue
-
-    #         task = asyncio.create_task(
-    #             self.prepare_and_send_request(
-    #                 payload=NodeRequest(
-    #                     type="broadcast",
-    #                     known_blocks=[block]
-    #                 ),
-    #                 type="NodeRequest",
-    #                 target_url=peer.address.to_url()
-    #             )
-    #         )
-    #         tasks.append(task)
-
-    #     results = await asyncio.gather(*tasks, return_exceptions=True)
-    #     accepted_count = 0
-
-    #     for result in results:
-    #         if isinstance(result, CommRequest) and getattr(result.payload, "accept_block", False):
-    #             accepted_count += 1
-
-    #     return accepted_count >= len(self.peers)//2
-
-
-    async def _sync_peers_and_blocks(self, peers: List[PeerInfo], blocks: List[Dict] = None):
-        """Synchronize peers and blocks."""
-        await self._sync_peers(peers)
-
-        # if self.node.credit_ledger:
-        #     await self.node.credit_ledger.sync_blocks(blocks)
 
 
     async def gossip_probe(self):
@@ -233,7 +193,6 @@ class ZmqCommunicator:
             address=self.address,
             last_seen=time.time()
         ))
-        known_blocks = None
         now = time.time()
 
         offline_nodes = []
@@ -248,17 +207,13 @@ class ZmqCommunicator:
                     payload=NodeRequest(
                         type="sync",
                         known_peers=known_peers,
-                        known_blocks=known_blocks
                     ),
                     type="NodeRequest",
                     target_url=peer_info.address.to_url()
                 )
 
                 if response:
-                    await self._sync_peers_and_blocks(
-                        response.payload.known_peers,
-                        response.payload.known_blocks
-                    )
+                    await self._sync_peers(response.payload.known_peers)
                 else:
                     offline_nodes.append(node_id)
 
@@ -295,10 +250,7 @@ class ZmqCommunicator:
 
             if req_type == "sync":
                 self.node.create_task(
-                    self._sync_peers_and_blocks(
-                        recv_request.payload.known_peers,
-                        recv_request.payload.known_blocks
-                    )
+                    self._sync_peers(recv_request.payload.known_peers)
                 )
 
                 known_peers = list(self.peers.values())
@@ -307,8 +259,6 @@ class ZmqCommunicator:
                     address=self.address,
                     last_seen=time.time()
                 ))
-                known_blocks = None
-                # known_blocks = await self.node.credit_ledger.get_blocks()
 
                 reply_request = CommRequest(
                     sender=self.address,
@@ -317,7 +267,6 @@ class ZmqCommunicator:
                     payload=NodeRequest(
                         type="sync",
                         known_peers=known_peers,
-                        known_blocks=known_blocks,
                     )
                 )
                 await self.receiver.send_multipart([
@@ -341,29 +290,6 @@ class ZmqCommunicator:
                     b'',
                     reply_request.model_dump_json().encode()
                 ])
-
-            elif req_type == "broadcast":
-                pass
-                # new_block = recv_request.payload.known_blocks[0]
-                # reply_future = await self.node.credit_ledger.receive_broadcast_block(new_block)
-
-                # async def send_reply():
-                #     accept_block = await reply_future
-                #     reply_request = CommRequest(
-                #         sender=self.address,
-                #         receiver=sender,
-                #         type="NodeRequest",
-                #         payload=NodeRequest(
-                #             type="broadcast",
-                #             accept_block=accept_block
-                #         )
-                #     )
-                #     await self.receiver.send_multipart([
-                #         identity,
-                #         b'',
-                #         reply_request.model_dump_json().encode()
-                #     ])
-                # asyncio.create_task(send_reply())
 
             else:
                 print(f"[{self.node.node_id}  ] Unknown NodeRequest type: {req_type}")

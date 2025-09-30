@@ -193,19 +193,6 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-
-datasets/
+excluded/
 scripts/
-models/
-results/
-azure_dataset/*.csv
-pdfs/
-
-tests/test.py
-tests/visualize_time.py
-tests/visualize_load.py
-tests/*.png
-
-examples/agent_chat.py
-
-*.png
+experiments/results/

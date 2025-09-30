@@ -7,7 +7,7 @@ from .async_queue import AsyncQueue
 
 if TYPE_CHECKING:
     from .core_node import LLMNode
-    from .request import ModelRequest
+    from .entities import ModelRequest
 
 
 INPUT_WINDOW_SIZE = 30             # Input window size (s)

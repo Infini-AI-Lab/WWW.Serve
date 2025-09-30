@@ -1,10 +1,14 @@
-import _setup_path
-from decentralized_agents.core_node import LLMNode
-from decentralized_agents.test_credit_ledger import TestCreditLedger
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 import asyncio
 import json
-import os
 import time
+from pathlib import Path
+
+from www_serve.core_node import LLMNode
+from www_serve.credit_ledger import CreditLedger
 
 
 async def timed_submit(idx, problem, node: LLMNode, delay = 0):
@@ -33,71 +37,69 @@ async def node_start_join(node: LLMNode, url: str, delay=0):
 
 
 async def main():
-    ledger = TestCreditLedger()
 
-    # node0 = await LLMNode.init_with_ledger(
-    #     node_id="node0",
-    #     config_path="configs/sglang_node0.yaml",
-    #     ledger=ledger,
-    # )
+    ##### Initialize nodes and credit ledger #####
+    ledger = CreditLedger()
+
+    CONFIG_PATH = Path(__file__).parent.parent.parent / "node_configs"
     node1 = await LLMNode.init_with_ledger(
         node_id="node1",
-        config_path="configs/sglang_node1.yaml",
+        config_path=CONFIG_PATH / "node1.yaml",
         ledger=ledger,
     )
     node2 = await LLMNode.init_with_ledger(
         node_id="node2",
-        config_path="configs/sglang_node2.yaml",
+        config_path=CONFIG_PATH / "node2.yaml",
         ledger=ledger,
     )
     node3 = await LLMNode.init_with_ledger(
         node_id="node3",
-        config_path="configs/sglang_node3.yaml",
+        config_path=CONFIG_PATH / "node3.yaml",
         ledger=ledger,
     )
     node4 = await LLMNode.init_with_ledger(
         node_id="node4",
-        config_path="configs/sglang_node4.yaml",
+        config_path=CONFIG_PATH / "node4.yaml",
         ledger=ledger,
     )
 
     await asyncio.sleep(1)
 
-    # await node0.start()
+    ##### Start nodes and form network #####
     await node1.start()
     await node2.start()
     await node3.start()
     await node4.start()
 
-    # await node1.join_network(node0.communicator.address.to_url())
     await node2.join_network(node1.communicator.address.to_url())
     await node3.join_network(node2.communicator.address.to_url())
     await node4.join_network(node3.communicator.address.to_url())
 
     nodes = {
-        # "node0": node0,
         "node1": node1,
         "node2": node2,
         "node3": node3,
-        "node4": node4
+        "node4": node4,
     }
 
-    ##### Testing code #####
-    with open("results/poisson_times_8.json", "r", encoding="utf-8") as f:
+    ##### Load input requests and simulate #####
+    input_path = Path(__file__).parent / "simu_input.json"
+    with open(input_path, "r", encoding="utf-8") as f:
         poisson_times = json.load(f)
 
     tasks = [
         asyncio.create_task(timed_submit(item["idx"], item["problem"], nodes[item["target"]], delay=item["delay"])) for item in poisson_times
     ]
 
-    # asyncio.create_task(node_start_join(node3, node1.communicator.address.to_url(), delay=400))
+    ##### Simulate node dynamics (uncomment to enable) #####
     # asyncio.create_task(node_start_join(node4, node1.communicator.address.to_url(), delay=800))
     # asyncio.create_task(node_offline(node4, delay=400))
-    # asyncio.create_task(node_offline(node3, delay=800))
 
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/decentralized_test_8_4/"
+    ##### Save results and stats #####
+    RESULT_PATH = Path(__file__).parent.parent / "results"
+    result_folder = RESULT_PATH / f"decentralized_simulation"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:

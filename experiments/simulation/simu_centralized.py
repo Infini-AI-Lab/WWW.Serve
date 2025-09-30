@@ -1,12 +1,25 @@
-import _setup_path
 import asyncio
 from openai import AsyncOpenAI
 import json
 import os
 import time
-from typing import Dict, List, Optional, Tuple
 import aiohttp
 from prometheus_client.parser import text_string_to_metric_families
+from typing import Dict, List, Optional, Tuple
+import yaml
+from pathlib import Path
+
+
+# Only support single model per node for now
+def _parse_node_config(config_path) -> Dict:
+    with open(config_path, "r", encoding="utf-8") as f:
+        node_cfg = yaml.safe_load(f)
+    return {
+        "base_url": node_cfg["models"][0]["base_url"],
+        "api_key": node_cfg["models"][0].get("api_key", "None"),
+        "model_path": node_cfg["models"][0]["model_path"],
+        "is_sglang": node_cfg["server_params"]["policy"] == "default_sglang",
+    }
 
 
 async def _get_server_metrics(
@@ -106,7 +119,7 @@ async def update_all_server_stats(clients):
 
 
 def choose_server(stats, source):
-    if source in stats and stats[source]["token_usage"] < 0.7:
+    if source in stats and stats[source]["token_usage"] < 0.6:
         return source
     return min(stats, key=lambda k: (stats[k]["token_usage"], stats[k]["num_running_reqs"] + stats[k]["num_queue_reqs"]))
 
@@ -184,49 +197,34 @@ async def run_with_delay(idx, clients, target, problem, delay):
     await asyncio.sleep(delay)
     return await dispatch_request(idx, clients, target, problem)
 
-
+##### Load node configurations #####
+CONFIG_PATH = Path(__file__).parent.parent.parent / "node_configs"
 NODES_INFO = {
-    "node1": {
-        "base_url": "http://192.168.102.11:30000/v1/",
-        "api_key": "None",
-        "model_path": "Qwen/Qwen3-32B",
-        "is_sglang": True
-    },
-    "node2": {
-        "base_url": "http://192.168.102.20:30001/v1/",
-        "api_key": "None",
-        "model_path": "Qwen/Qwen3-8B",
-        "is_sglang": True
-    },
-    "node3": {
-        "base_url": "http://192.168.102.12:30002/v1/",
-        "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/deepseek-ai--DeepSeek-R1-Distill-Qwen-7B",
-        "is_sglang": False
-    },
-    "node4": {
-        "base_url": "http://192.168.102.19:30003/v1/",
-        "api_key": "None",
-        "model_path": "/home/hywang/Reasoning/Decentralized-Agents/models/meta-llama--Llama-3.1-8B",
-        "is_sglang": False
-    }
+    "node1": _parse_node_config(CONFIG_PATH / "node1.yaml"),
+    "node2": _parse_node_config(CONFIG_PATH / "node2.yaml"),
+    "node3": _parse_node_config(CONFIG_PATH / "node3.yaml"),
+    "node4": _parse_node_config(CONFIG_PATH / "node4.yaml"),
 }
+print("Loaded node configurations:", NODES_INFO)
 
 
 async def main():
     clients = {
-        name: (AsyncOpenAI(base_url=info["base_url"], api_key=info["api_key"]), info["model_path"], info["is_sglang"])
-        for name, info in NODES_INFO.items()
-    }
-    await asyncio.sleep(1)
-    stats = {
-        name: RecordStats(info["base_url"][:-4], is_sglang=info["is_sglang"])
+        name: (AsyncOpenAI(base_url=f"{info["base_url"]}/v1", api_key=info["api_key"]), info["model_path"], info["is_sglang"])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
 
-    ##### Testing code #####
-    with open("results/poisson_times.json", "r", encoding="utf-8") as f:
+    ##### Start recording stats #####
+    stats = {
+        name: RecordStats(info["base_url"], is_sglang=info["is_sglang"])
+        for name, info in NODES_INFO.items()
+    }
+    await asyncio.sleep(1)
+
+    ##### Load input requests #####
+    input_path = Path(__file__).parent / "simu_input.json"
+    with open(input_path, "r", encoding="utf-8") as f:
         poisson_times = json.load(f)
 
     tasks = [
@@ -234,7 +232,9 @@ async def main():
     ]
     all_results = await asyncio.gather(*tasks)
 
-    result_folder = "results/centralized_test_4/"
+    ##### Save results #####
+    RESULT_PATH = Path(__file__).parent.parent / "results"
+    result_folder = RESULT_PATH / f"centralized_simulation"
     os.makedirs(result_folder, exist_ok=True)
 
     with open(f"{result_folder}/result.json", "w", encoding="utf-8") as f:
