@@ -17,14 +17,14 @@ Huanyu Wang<sup>1</sup>, Ziyu Xia<sup>2</sup>, Zhuoming Chen<sup>2</sup>, Beidi 
 
 ## TL;DR
 
-We introduce **WWW\.Serve**, a *decentralized framework for trustless yet collaborative multi-LLM serving*. It preserves service providers’ anonymity and privacy, while supporting self-organizing request dispatch, dynamic workload balancing, and autonomous resource/policy control.  
+We introduce **`WWW.Serve`**, a *decentralized framework for trustless yet collaborative multi-LLM serving*. It preserves service providers’ anonymity and privacy, while supporting self-organizing request dispatch, dynamic workload balancing, and autonomous resource/policy control.  
 
 Three key designs are integrated:
 - a blockchain-inspired credit system for trustless collaboration.
 - gossip-driven peer synchronization for flexible participation.
 - a duel-and-judge mechanism for robust contributor evaluation.
 
-Under various configurations, WWW\.Serve improves global SLO attainment by up to <strong>1.5x</strong> and lowers latency by <strong>27.6%</strong>. Its performance approaches, and in some cases surpasses, centralized scheduling, while preserving the benefits of decentralization.
+Under various configurations, `WWW.Serve` improves global SLO attainment by up to <strong>1.5x</strong> and lowers latency by <strong>27.6%</strong>. Its performance approaches, and in some cases surpasses, centralized scheduling, while preserving the benefits of decentralization.
 
 <div align="center">
   <img src="assets/slo_global_legend.png" width="40%" />
@@ -32,10 +32,10 @@ Under various configurations, WWW\.Serve improves global SLO attainment by up to
 
 <table align="center" style="border-collapse: collapse; table-layout: fixed; width: 100%;">
   <tr>
-    <td align="center" width="25%"><img src="assets/slo_global_1.png" width="80%" /></td>
-    <td align="center" width="25%"><img src="assets/slo_global_2.png" width="80%" /></td>
-    <td align="center" width="25%"><img src="assets/slo_global_3.png" width="80%" /></td>
-    <td align="center" width="25%"><img src="assets/slo_global_4.png" width="80%" /></td>
+    <td align="center" width="25%"><img src="assets/slo_global_1.png" width="90%" /></td>
+    <td align="center" width="25%"><img src="assets/slo_global_2.png" width="90%" /></td>
+    <td align="center" width="25%"><img src="assets/slo_global_3.png" width="90%" /></td>
+    <td align="center" width="25%"><img src="assets/slo_global_4.png" width="90%" /></td>
   </tr>
 </table>
 
@@ -64,7 +64,7 @@ WWWServe/
 
 - `experiments/`: simulation scripts for network experiments and notebooks for visualization.
 - `node_configs/`: YAML configuration files specifying parameters for each node.
-- `www_serve/`: core implementation of WWW\.Serve, including policies and scheduling logic.
+- `www_serve/`: core implementation of `WWW.Serve`, including policies and scheduling logic.
 
 
 
@@ -81,7 +81,7 @@ pip install -r requirements.txt
 
 ### Usage
 
-The typical workflow of WWW\.Serve consists of the following steps:
+The typical workflow of `WWW.Serve` consists of the following steps:
 
 
 #### 1. Launch LLM Servers
