@@ -147,7 +147,7 @@ By default, the simulation outputs are saved in `experiments/results/`, includin
 - result.json: aggregated results for all requests.
 
 
-#### 4. Visualization
+#### 4. Visualize results
 
 The simulation results can be analyzed using the Jupyter notebooks in `experiments/visualization/`. These notebooks allow you to visualize: Global SLO attainment, request latency distribution, and server load status.
 
