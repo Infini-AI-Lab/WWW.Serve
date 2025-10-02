@@ -2,9 +2,9 @@
 
 <h1>WWW&#46;Serve: a Decentralized Framework for Collaborative LLM Serving</h1>
 
-Huanyu Wang<sup>1</sup>, Ziyu Xia<sup>2</sup>, Zhuoming Chen<sup>2</sup>, Beidi Chen<sup>2</sup>
+Huanyu Wang, Ziyu Xia, Zhuoming Chen, Beidi Chen
 
-<sup>1</sup>Shanghai Jiao Tong University, <sup>2</sup>Carnegie Mellon University
+Carnegie Mellon University
 
 -----------------
 </div>
