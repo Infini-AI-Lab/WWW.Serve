@@ -1,7 +1,7 @@
 server_params:
   ip: 127.0.0.1
   port: 5778
-  policy: default_sglang
+  policy: default_mlc_llm
   offload_frequency: 0.8
   queue_frequency: 0.2
   accept_frequency: 0.8
@@ -11,8 +11,8 @@ ledger_params:
   initial_staked: 0.0
 
 models:
-  - model_path: Qwen/Qwen3-8B
-    base_url: http://192.168.102.18:30000
+  - model_path: HF://mlc-ai/Llama-3.2-3B-Instruct-q4f32_1-MLC
+    base_url: http://127.0.0.1:8000
     api_key: None
 
     gen_params:

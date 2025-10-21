@@ -8,7 +8,7 @@ from prometheus_client.parser import text_string_to_metric_families
 from typing import Dict, List, Optional, Tuple
 import yaml
 from pathlib import Path
-
+import sys
 
 # Only support single model per node for now
 def _parse_node_config(config_path) -> Dict:
@@ -18,6 +18,7 @@ def _parse_node_config(config_path) -> Dict:
         "base_url": node_cfg["models"][0]["base_url"],
         "api_key": node_cfg["models"][0].get("api_key", "None"),
         "model_path": node_cfg["models"][0]["model_path"],
+        "policy": node_cfg["server_params"]["policy"],
         "is_sglang": node_cfg["server_params"]["policy"] == "default_sglang",
     }
 
@@ -32,75 +33,121 @@ async def _get_server_metrics(
                 if response.status != 200:
                     return None
                 metrics_text = await response.text()
+        parsed_metrics: List[Dict] = []
 
-        parsed_metrics = []
-        for family in text_string_to_metric_families(metrics_text):
-            for sample in family.samples:
-                if metric_list is None or sample.name in metric_list:
-                    parsed_metrics.append({
-                        "name": sample.name,
-                        "value": sample.value,
-                        "labels": sample.labels
-                    })
+        try:
+            families = text_string_to_metric_families(metrics_text)
+            for family in families:
+                for sample in family.samples:
+                    if metric_list is None or sample.name in metric_list:
+                        parsed_metrics.append({
+                            "name": sample.name,
+                            "value": sample.value,
+                            "labels": sample.labels
+                        })
+        except Exception as e:
+            pass
         return parsed_metrics
 
     except Exception as e:
         return None
 
 
-async def get_server_metrics(server_url: str, is_sglang: bool) -> Tuple[int, int, float]:
-    """Get server metrics for the model."""
-    if is_sglang:
-        metrics = await _get_server_metrics(server_url, metric_list=
-                                            ["sglang:num_running_reqs",
-                                            "sglang:num_queue_reqs",
-                                            "sglang:token_usage"])
-    else:
-        metrics = await _get_server_metrics(server_url, metric_list=
-                                            ["vllm:num_requests_running",
-                                            "vllm:num_requests_waiting",
-                                            "vllm:gpu_cache_usage_perc"])
+async def get_server_metrics(server_url: str,
+                             policy: str,
+                             is_sglang: bool,
+                             ) -> Tuple[int, int, float]:
+    """
+        Get server metrics for the model.
+        Returns a dict of parsed metrics in (key, value) tuples as (name : str, value).
+    """
+    match(policy):
+        case "default_mlc_llm":
+            parsed_metrics = {
+                "prefill_tokens_per_s": 0.0,
+                "last_finished_request_end_to_end_latency_s": 0.0,
+                "last_finished_request_ttft_s": 0.0
+            }
 
-    if metrics is None:
-        return 999, 999, 1.0
+            queried_metrics = ["prefill_tokens_per_s",
+                                                "last_finished_request_end_to_end_latency_s",
+                                                "last_finished_request_ttft_s"]
+            metrics = await _get_server_metrics(server_url, metric_list=queried_metrics)
+            if not metrics:
+                return parsed_metrics
 
-    raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
+            raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
 
-    if is_sglang:
-        token_usage = raw_metrics.get("sglang:token_usage", 1.0)
-        num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 999)
-        num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 999)
-    else:
-        token_usage = raw_metrics.get("vllm:gpu_cache_usage_perc", 1.0)
-        num_running_reqs = raw_metrics.get("vllm:num_requests_running", 999)
-        num_queue_reqs = raw_metrics.get("vllm:num_requests_waiting", 999)
+            for metric in queried_metrics:
+                parsed_metrics[metric] = raw_metrics.get(metric, 0.0)
+            
+            return parsed_metrics
+        case _: 
+            parsed_metrics = {
+                "running_reqs": 999,
+                "queue_reqs": 999,
+                "token_usage": 1.0
+            }
+            if is_sglang:
+                queried_metrics = ["sglang:num_running_reqs",
+                                    "sglang:num_queue_reqs",
+                                    "sglang:token_usage"]
+            else:
+                queried_metrics = ["vllm:num_requests_running",
+                                "vllm:num_requests_waiting",
+                                "vllm:gpu_cache_usage_perc"]
+            metrics = await _get_server_metrics(server_url, metric_list=queried_metrics)
 
-    return int(num_running_reqs), int(num_queue_reqs), token_usage
+            if not metrics:
+                return parsed_metrics
+
+            raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
+
+            if is_sglang:
+                token_usage = raw_metrics.get("sglang:token_usage", 1.0)
+                num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 999)
+                num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 999)
+            else:
+                token_usage = raw_metrics.get("vllm:gpu_cache_usage_perc", 1.0)
+                num_running_reqs = raw_metrics.get("vllm:num_requests_running", 999)
+                num_queue_reqs = raw_metrics.get("vllm:num_requests_waiting", 999)
+
+            parsed_metrics["token_usage"] = token_usage
+            parsed_metrics["running_reqs"] = int(num_running_reqs)
+            parsed_metrics["queue_reqs"] = int(num_queue_reqs)
+
+            return parsed_metrics
 
 
 class RecordStats:
-    def __init__(self, server_url, is_sglang):
+    def __init__(self, server_url, policy, model_path, is_sglang):
         self.stats = []
         self.server_url = server_url
+        self.policy = policy
+        self.model_path = model_path
         self.is_sglang = is_sglang
         asyncio.create_task(self.record_stats_periodically())
 
     async def record_stats_periodically(self):
         while True:
-            num_running_reqs, num_queue_reqs, token_usage = await get_server_metrics(server_url=self.server_url, is_sglang=self.is_sglang)
-            self.stats.append({
-                "timestamp": time.time(),
-                "num_running_reqs": num_running_reqs,
-                "num_queue_reqs": num_queue_reqs,
-                "token_usage": token_usage
-            })
-            print(f"{self.server_url}: running={num_running_reqs}, queue={num_queue_reqs}, token={token_usage}")
+            metrics = await get_server_metrics(server_url=self.server_url, policy=self.policy, is_sglang=self.is_sglang)
+
+            record = {"timestamp": time.time()}
+            for name, value in metrics.items():
+                record[name] = value
+
+            self.stats.append(record)
+
+            print(f"{self.server_url}: metrics={metrics}")
+            # print(f"{self.server_url}: running={num_running_reqs}, queue={num_queue_reqs}, token={token_usage}")
+
             await asyncio.sleep(3)
 
 
 async def inference_request(idx, client_name, client, model_path, problem):
     submit_time = time.time()
     try:
+        print(f"Dispatching request {idx} -> {client_name}")
         meta_response = await client.chat.completions.create(
             model = model_path,
             messages = [{
@@ -115,6 +162,8 @@ async def inference_request(idx, client_name, client, model_path, problem):
             max_tokens = 8192
         )
         finish_time = time.time()
+
+        print(f"Received response for {idx} from {client_name} (took {finish_time - submit_time:.2f}s)")
 
         response = {
             "idx": idx,
@@ -181,7 +230,7 @@ async def main():
 
     ##### Start recording stats #####
     stats = {
-        name: RecordStats(info["base_url"], is_sglang=info["is_sglang"])
+        name: RecordStats(info["base_url"], policy=info.get("policy"), model_path=info.get("model_path"), is_sglang=info["is_sglang"])
         for name, info in NODES_INFO.items()
     }
     await asyncio.sleep(1)
