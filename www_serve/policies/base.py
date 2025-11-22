@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Dict
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ class BaseModelPolicy(ABC):
     """Base class for model policies."""
 
     @abstractmethod
-    async def get_server_metrics(self, node: "LLMNode", model_path: str) -> Tuple[int, int, float]:
-        """Get server metrics for the model."""
+    async def get_server_metrics(self, node: "LLMNode", model_path: str) -> Dict[str, float | int]:
+        """Get server metrics for the model. Returns a mapping of metric name -> numeric value."""
         ...
 

@@ -9,6 +9,11 @@ from .policies.default_vllm import (
     DefaultVllmModelPolicy
 )
 
+from .policies.default_mlc_llm import (
+    DefaultMLCLLMRoutingPolicy,
+    DefaultMLCLLMModelPolicy
+)
+
 
 class PolicyManager:
     def __init__(self, policy: str = "default_sglang"):
@@ -20,5 +25,8 @@ class PolicyManager:
         elif policy == "default_vllm":
             self.routing_policy = DefaultVllmRoutingPolicy()
             self.model_policy = DefaultVllmModelPolicy()
+        elif policy == "default_mlc_llm":
+            self.routing_policy = DefaultMLCLLMRoutingPolicy()
+            self.model_policy = DefaultMLCLLMModelPolicy()
         else:
             raise ValueError(f"Unknown policy: {policy}")

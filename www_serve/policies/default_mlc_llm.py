@@ -56,21 +56,28 @@ class DefaultMLCLLMModelPolicy(BaseModelPolicy):
             return None
 
 
-    async def get_server_metrics(self, node, model_path) -> Tuple[int, int, float]:
-        """Get server metrics for the model."""
-        server_url = node.models.base_urls[model_path]
-        metrics = await self._get_sglang_metrics(server_url, metric_list=
-                                                    ["sglang:num_running_reqs",
-                                                    "sglang:num_queue_reqs",
-                                                    "sglang:token_usage"])
+    async def get_server_metrics(self, node, model_path) -> Dict[str, float | int]:
+        """Get server metrics for the model.
+           Returns a dict of parsed metrics in (key, value) tuples as (name : str, value).
+        """
+        parsed_metrics = {
+            "prefill_tokens_per_s": 0.0,
+            "last_finished_request_end_to_end_latency_s": 0.0,
+            "last_finished_request_ttft_s": 0.0
+        }
 
-        if metrics is None:
-            return 0, 0, 0.0
+        queried_metrics = ["prefill_tokens_per_s",
+                            "last_finished_request_end_to_end_latency_s",
+                            "last_finished_request_ttft_s"]
+        server_url = node.models.base_urls[model_path]
+        metrics = await self._get_mlcllm_metrics(server_url, metric_list=queried_metrics)
+
+        if not metrics:
+            return parsed_metrics
 
         raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
+        
+        for metric in queried_metrics:
+            parsed_metrics[metric] = raw_metrics.get(metric, 0.0)
 
-        token_usage = raw_metrics.get("sglang:token_usage", 0.0)
-        num_running_reqs = raw_metrics.get("sglang:num_running_reqs", 0)
-        num_queue_reqs = raw_metrics.get("sglang:num_queue_reqs", 0)
-
-        return int(num_running_reqs), int(num_queue_reqs), token_usage
+        return parsed_metrics

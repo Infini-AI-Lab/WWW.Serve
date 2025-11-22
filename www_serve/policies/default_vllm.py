@@ -53,21 +53,27 @@ class DefaultVllmModelPolicy(BaseModelPolicy):
             return None
 
 
-    async def get_server_metrics(self, node, model_path) -> Tuple[int, int, float]:
-        """Get server metrics for the model."""
+    async def get_server_metrics(self, node, model_path) -> Dict[str, float | int]:
+        """Get server metrics for the model. Returns a dict with keys: num_running_reqs, num_queue_reqs, token_usage."""
         server_url = node.models.base_urls[model_path]
         metrics = await self._get_vllm_metrics(server_url, metric_list=
                                                     ["vllm:num_requests_running",
                                                     "vllm:num_requests_waiting",
                                                     "vllm:gpu_cache_usage_perc"])
 
-        if metrics is None:
-            return 0, 0, 0.0
+        parsed_metrics: Dict[str, float | int] = {
+            "num_running_reqs": 0,
+            "num_queue_reqs": 0,
+            "token_usage": 0.0,
+        }
+
+        if not metrics:
+            return parsed_metrics
 
         raw_metrics = {entry["name"]: entry["value"] for entry in metrics}
 
-        token_usage = raw_metrics.get("vllm:gpu_cache_usage_perc", 0.0)
-        num_running_reqs = raw_metrics.get("vllm:num_requests_running", 0)
-        num_queue_reqs = raw_metrics.get("vllm:num_requests_waiting", 0)
+        parsed_metrics["token_usage"] = float(raw_metrics.get("vllm:gpu_cache_usage_perc", 0.0))
+        parsed_metrics["num_running_reqs"] = int(raw_metrics.get("vllm:num_requests_running", 0))
+        parsed_metrics["num_queue_reqs"] = int(raw_metrics.get("vllm:num_requests_waiting", 0))
 
-        return int(num_running_reqs), int(num_queue_reqs), token_usage
+        return parsed_metrics

@@ -56,10 +56,10 @@ async def _get_server_metrics(
 async def get_server_metrics(server_url: str,
                              policy: str,
                              is_sglang: bool,
-                             ) -> Tuple[int, int, float]:
+                             ) -> Dict[str, float | int]:
     """
         Get server metrics for the model.
-        Returns a dict of parsed metrics in (key, value) tuples as (name : str, value).
+        Returns a dict of parsed metrics mapping metric name to numeric value (float or int).
     """
     match(policy):
         case "default_mlc_llm":

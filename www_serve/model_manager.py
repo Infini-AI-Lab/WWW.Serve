@@ -44,6 +44,9 @@ class ModelManager:
                 "num_running_reqs": 0,
                 "num_queue_reqs": 0,
                 "token_usage": 0.0,
+                "prefill_tokens_per_s": 0.0,
+                "last_finished_request_end_to_end_latency_s": 0.0,
+                "last_finished_request_ttft_s": 0.0
             }
             self.server_stats_history[model_path] = []
             self.base_urls[model_path] = base_url
@@ -125,11 +128,14 @@ class ModelManager:
         """Record server metrics."""
         for model_path in self.clients:
             try:
-                num_running_reqs, num_queue_reqs, token_usage = await self.node.policy.model_policy.get_server_metrics(self.node, model_path)
-                self.server_stats[model_path]["num_running_reqs"] = num_running_reqs
-                self.server_stats[model_path]["num_queue_reqs"] = num_queue_reqs
-                self.server_stats[model_path]["token_usage"] = token_usage
+                metrics = await self.node.policy.model_policy.get_server_metrics(self.node, model_path)
 
+                # metrics is expected to be a dict mapping metric name -> numeric value
+                if isinstance(metrics, dict):
+                    for k, v in metrics.items():
+                        if k in self.server_stats[model_path]:
+                            self.server_stats[model_path][k] = v
+            
                 self.server_stats_history[model_path].append({
                     "timestamp": time.time(),
                     **self.server_stats[model_path].copy()
