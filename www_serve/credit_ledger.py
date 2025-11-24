@@ -1,18 +1,29 @@
 from .entities import CreditAccount
-from typing import Dict, List
+from typing import Dict, List, Set
 import random
 import time
 import aiorwlock
+import math
+import os
+import csv
+import asyncio
 
 
 
 class CreditLedger:
-    def __init__(self):
+    def __init__(self, duel_record_pth: str = None):
         self.accounts: Dict[str, CreditAccount] = {}
         self.accounts_lock = aiorwlock.RWLock()
 
         self.stakes: Dict[str, float] = {}  # node_id -> staked amount
         self.stakes_lock = aiorwlock.RWLock()
+
+        self.duel_record_pth = duel_record_pth
+        self.log_lock = asyncio.Lock()
+        if self.duel_record_pth and not os.path.exists(self.duel_record_pth):
+            with open(self.duel_record_pth, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp", "action", "decrease", "increase", "details"])
 
 
     async def create_account(self, node_id: str, initial_credit: float, initial_staked: float) -> bool:
@@ -41,14 +52,17 @@ class CreditLedger:
             account = self.accounts.get(node_id)
             return account.credit if account else 0.0
 
+
     async def get_stake(self, node_id: str) -> float:
         """Return the current stake of a node."""
         async with self.stakes_lock.reader_lock:
             return self.stakes.get(node_id, 0.0)
-        
+
+
     async def get_all_stakes(self) -> Dict[str, float]:
         async with self.stakes_lock.reader_lock:
             return self.stakes.copy()
+
 
     async def stake(self, node_id: str, amount: float) -> bool:
         async with self.accounts_lock.reader_lock:
@@ -91,23 +105,134 @@ class CreditLedger:
         return True
 
 
-    async def select_node_by_pos(self, exclude_nodes: List[str], seed: str, k = 3) -> List[str]:
-        """Select top-k nodes based on their stakes using a pseudo-random selection."""
+    async def select_node_by_pos(
+        self,
+        exclude_nodes: Set[str],
+        k: int = 3
+    ) -> List[str]:
+        """PoS selection (without replacement)."""
         if not self.stakes:
             return []
 
         async with self.stakes_lock.reader_lock:
-            node_ids = list(self.stakes.keys())
-            for exclude_node in exclude_nodes:
-                if exclude_node in node_ids:
-                    node_ids.remove(exclude_node)
+            node_ids = [nid for nid in self.stakes.keys() if nid not in exclude_nodes]
             weights = [self.stakes[nid] for nid in node_ids]
 
-        total = sum(weights)
-
-        if total == 0:
+        pairs = [(nid, w) for nid, w in zip(node_ids, weights) if w > 0]
+        if not pairs:
             return []
 
+        node_ids, weights = zip(*pairs)
         rng = random.Random(time.time())
+        # Efraimidis–Spirakis
+        scored = [(-math.log(rng.random()) / w, nid) for nid, w in zip(node_ids, weights)]
+        scored.sort(key=lambda x: x[0])
+        k = min(k, len(scored))
 
-        return rng.choices(node_ids, weights=weights, k=k)
+        return [nid for _, nid in scored[:k]]
+
+
+    async def transfer_nothing(self, from_id: str, to_id: str) -> bool:
+        """Transfer nothing from one account to another."""
+        decrease_map, increase_map = {}, {}
+        for node_id in [from_id, to_id]:
+            decrease_map[node_id] = 0
+            increase_map[node_id] = 0
+        await self._log_duel_action("transfer_nothing", decrease_map, increase_map)
+        return True
+
+
+    async def transfer_all_stake(self, from_id: str, to_id: str) -> bool:
+        decrease_map, increase_map = {}, {}
+
+        async with self.accounts_lock.writer_lock, self.stakes_lock.writer_lock:
+            from_stake = self.stakes.get(from_id, 0.0)
+            if from_stake == 0:
+                return False
+
+            self.stakes[from_id] -= from_stake
+            self.accounts[from_id].staked -= from_stake
+            decrease_map[from_id] = from_stake
+
+            self.accounts[to_id].credit += from_stake
+            increase_map[to_id] = from_stake
+
+        await self._log_duel_action(
+            "transfer_all_stake",
+            decrease_map,
+            increase_map,
+            details=f"{from_id} → {to_id}"
+        )
+        return True
+
+
+
+    async def judge_transfer(self, majority: List[str], minority: List[str], non_participants: List[str]):
+        decrease_map, increase_map = {}, {}
+        amount = 0.0
+
+        async with self.accounts_lock.writer_lock, self.stakes_lock.writer_lock:
+            def deduct(node_ids, factor):
+                nonlocal amount
+                for node_id in node_ids:
+                    dec = self.stakes[node_id] * factor
+                    self.stakes[node_id] -= dec
+                    self.accounts[node_id].staked -= dec
+                    decrease_map[node_id] = dec
+                    amount += dec
+
+            deduct(minority, 0.2)
+            deduct(non_participants, 0.05)
+
+            reward = amount / len(majority) if majority else 0
+            for node_id in majority:
+                self.accounts[node_id].credit += reward
+                increase_map[node_id] = reward
+
+        await self._log_duel_action(
+            "judge_transfer",
+            decrease_map,
+            increase_map,
+            details=f"minority={minority}, non_participants={non_participants}, majority={majority}"
+        )
+
+
+
+    async def judge_transfer_tied(self, participants: List[str], non_participants: List[str]):
+        if not participants:
+            return
+
+        decrease_map = {}
+        increase_map = {}
+        amount = 0.0
+
+        async with self.accounts_lock.writer_lock, self.stakes_lock.writer_lock:
+            for node_id in non_participants:
+                dec = 0  # TODO: replace with actual calculation if needed
+                self.stakes[node_id] -= dec
+                self.accounts[node_id].staked -= dec
+                decrease_map[node_id] = dec
+                amount += dec
+
+            reward = amount / len(participants)
+            for node_id in participants:
+                self.accounts[node_id].credit += reward
+                increase_map[node_id] = reward
+
+        await self._log_duel_action(
+            "judge_transfer_tied",
+            decrease_map,
+            increase_map,
+            details=f"participants={participants}, non_participants={non_participants}"
+        )
+
+
+
+    async def _log_duel_action(self, action: str, decrease_map: dict, increase_map: dict, details=None):
+        ts = time.time()
+        decrease_str = ";".join([f"{nid}:{amt:.4f}" for nid, amt in decrease_map.items()])
+        increase_str = ";".join([f"{nid}:{amt:.4f}" for nid, amt in increase_map.items()])
+        async with self.log_lock:
+            with open(self.duel_record_pth, "a", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow([ts, action, decrease_str, increase_str, details or ""])

@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Union, List, TYPE_CHECKING
 import time
 import json
+import numpy as np
 
 
 from .entities import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest
@@ -93,6 +94,10 @@ class ZmqCommunicator:
     async def _send_request(self, comm_request: CommRequest) -> Union[Dict, None]:
         """Send a communication request."""
         socket = None
+
+        # Network latency simulation
+        # await asyncio.sleep(np.random.exponential(0.05))
+
         try:
             target_url = comm_request.receiver.to_url()
 
@@ -169,20 +174,19 @@ class ZmqCommunicator:
         return None
 
 
-    async def select_node_from_candidates(self, candidates: List[str]) -> str | None:
-        """Probe the candidate nodes and return the first one that accepts."""
+    async def select_k_nodes_from_candidates(self, candidates: List[str], k = 1) -> List[str]:
+        """Probe the candidate nodes and return the first k that accepts."""
         tasks = [self._check_node(node_id) for node_id in candidates]
         results = await asyncio.gather(*tasks)
 
+        accepted_nodes = []
         for node_id in results:
             if node_id:
-                return node_id
-        return None
-
-
-    async def select_node_from_peers(self):
-        """Probe all peers and return the first one that accepts."""
-        return await self.select_node_from_candidates(list(self.peers.keys()))
+                accepted_nodes.append(node_id)
+                k -= 1
+            if k <= 0:
+                break
+        return accepted_nodes
 
 
     async def gossip_probe(self):

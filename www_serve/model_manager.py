@@ -9,8 +9,6 @@ if TYPE_CHECKING:
 
 
 DEFAULT_TARGET_TOKEN_USAGE = 0.5
-DEFAULT_MIN_REQUESTS_PER_WINDOW = 0
-DEFAULT_MAX_REQUESTS_PER_WINDOW = 5
 
 
 class ModelManager:
@@ -80,23 +78,14 @@ class ModelManager:
                 },
                 temperature = gen_params.get("temperature", 0.6),
                 top_p = gen_params.get("top_p", 0.95),
-                max_tokens = gen_params.get("max_tokens", 8192)
+                max_tokens = gen_params.get("max_tokens", 8192),
             )
-
             response = self._format_response(meta_response)
             response["source_node"] = request.source_node_addr.node_id
             response["executor_node"] = self.node.node_id
 
             request.set_response(response, executor_node_id=self.node.node_id)
             await self.node.handle_response_request(request)
-            # TODO: For now, no grading
-            # request_with_scores = await self.node.grading_request(request)
-            # if request_with_scores:
-            #     print(f"[{self.node.node_id}  ] Request {request_with_scores.model_request_id} + grading finished.")
-            #     await self.node.handle_response_request(request_with_scores)
-            # else:
-            #     print(f"[{self.node.node_id}  ] Request {request.model_request_id} finished without grading.")
-            #     await self.node.handle_response_request(request)
 
         except Exception as e:
             response = {

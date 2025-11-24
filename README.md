@@ -158,6 +158,12 @@ The simulation results can be analyzed using the Jupyter notebooks in `experimen
 
 
 
+### Acknowledgment
+
+This work was conducted during **Huanyu Wang**’s internship at Carnegie Mellon University. For questions or collaboration, please contact: `whyisverysmart@gmail.com`
+
+
+
 ### Citation
 ```
 TODO

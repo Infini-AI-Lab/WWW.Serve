@@ -4,7 +4,6 @@ from typing import List, Tuple, Dict, Literal, Optional, Union, Annotated
 from pydantic import BaseModel, Field, ConfigDict
 
 
-
 class CreditAccount(BaseModel):
     node_id: str
     pubkey: Optional[str] = None
@@ -60,7 +59,9 @@ class ModelRequest(BaseModel):
     route_path: List[Tuple[str, float]] = []  # (node_id, timestamp)
     user_input: Optional[str] = None
     model_result: Optional[Dict] = None
-    result_scores: Optional[List[float]] = None
+
+    is_duel_req: bool = False
+    is_judge_task: bool = False
 
     # Allow arbitrary types in the Pydantic model
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -79,6 +80,14 @@ class ModelRequest(BaseModel):
         self.executor_node_id = executor_node_id
         self.type = "response"
 
+
+    def copy_request_for_duel(self) -> "ModelRequest":
+        """Return a deep copy of this ModelRequest."""
+        copy_req = self.model_copy(deep=True)
+        copy_req.model_request_id = None
+        copy_req.assign_id()
+        copy_req.is_duel_req = True
+        return copy_req
 
 
 class EmptyRequest(BaseModel):

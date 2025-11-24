@@ -4,6 +4,7 @@ import asyncio
 import yaml
 import time
 import random
+from uuid import uuid4
 
 from .entities import ModelRequest
 from .model_manager import ModelManager
@@ -17,8 +18,10 @@ if TYPE_CHECKING:
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
+DEFAULT_REQUEST_TIMEOUT = 300       # Default timeout for user requests (s)
 DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
+P_INSPECT = 0.1
+K_JUDGES = 2
 
 
 class LLMNode:
@@ -43,6 +46,12 @@ class LLMNode:
         self.delegate_from: Dict[str, str] = {}  # request_id -> delegate_from_url
         self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
         self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
+
+        self.duel_settle_locks: Dict[str, asyncio.Lock] = {}
+        self.judge_length = int(self.config["models"][0]["gen_params"]["max_tokens"]*1.2)
+        self.duel_states: Dict[str, dict] = {}
+        self.duel_dict: Dict[str, (str, str)] = {} # Maps request IDs to duel IDs and roles
+        self.judge_dict: Dict[str, str] = {}  # Maps judge_req_ids to duel IDs
 
         self._tasks: Set[asyncio.Task] = set()
 
@@ -163,6 +172,60 @@ class LLMNode:
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
 
+    def _build_judge_payload(self, user_input, content_A, content_B, max_length_percontent: int = 49152) -> str:
+        content_A = content_A[:max_length_percontent]
+        content_B = content_B[:max_length_percontent]
+        return (
+            "You are a careful and strict reviewer. Your task is to choose the better answer between the two options below. "
+            "Your evaluation criteria include:\n"
+            "1. Correctness of the answer\n"
+            "2. Completeness of the answer\n"
+            "3. Strict adherence to the instructions\n\n"
+            "Do not include any other content, explanations, or remarks.\n\n"
+            f"Question: {user_input}\n\n"
+            f"Answer A:\n{content_A}\n\n"
+            f"Answer B:\n{content_B}\n\n"
+            "Please provide your choice directly: output only A or B; if unable to distinguish, output #."
+        )
+    
+
+    async def _settle_duel(self, duel_id: str):
+        self.duel_settle_locks.pop(duel_id, None)
+        st = self.duel_states.pop(duel_id, None)
+        
+        if not st:
+            return
+
+        A_exec = st["A"].executor_node_id
+        B_exec = st["B"].executor_node_id
+
+        a_votes = sum(1 for (_, v) in st["votes"] if v == "A")
+        b_votes = sum(1 for (_, v) in st["votes"] if v == "B")
+
+        print(f"[{self.node_id}  ] Duel {duel_id} votes: A={a_votes}, B={b_votes}")
+
+        if a_votes == b_votes:
+            winner, loser = None, None
+            participants = [nid for (nid, v) in st["votes"] if v == "A" or v == "B"]
+            non_participants = [nid for (nid, v) in st["votes"] if v == None]
+            print(f"[{self.node_id}  ] Duel {duel_id} is tied. Participants: {participants}, Non-participants: {non_participants}")
+            await self.credit_ledger.judge_transfer_tied(participants=participants, non_participants=non_participants)
+
+        else:
+            winner, loser = (A_exec, B_exec) if a_votes > b_votes else (B_exec, A_exec)
+            correct = "A" if a_votes > b_votes else "B"
+            majority = [nid for (nid, v) in st["votes"] if v == correct]
+            minority = [nid for (nid, v) in st["votes"] if v != correct and v is not None]
+            non_participants = [nid for (nid, v) in st["votes"] if v is None]
+            print(f"[{self.node_id}  ] Duel {duel_id} . majority: {majority}, minority: {minority}, non-participants: {non_participants}")
+            await self.credit_ledger.judge_transfer(majority=majority, minority=minority, non_participants=non_participants)
+
+        if self.credit_ledger and winner and loser:
+            _ = await self.credit_ledger.transfer_all_stake(loser, winner)
+        else: 
+            _ = await self.credit_ledger.transfer_nothing(A_exec, B_exec)
+
+
     async def handle_node_offline(self, node_id: str):
         """Handle the corresponding requests for an offline node."""
         if self.dispatching_requests.get(node_id) is None:
@@ -181,37 +244,12 @@ class LLMNode:
         self.dispatching_requests.pop(node_id, None)
 
 
-    async def grading_request(self, request: "ModelRequest") -> "ModelRequest":
-        """Grading a single request."""
-        meta_data = request.model_result.get("meta_data", {})
-        finish_reason = meta_data.get("finish_reason", "unknown")
-        # completion_tokens = meta_data.get("usage", {}).get("completion_tokens", 0)
-
-        finish_score = 1.0 if finish_reason == "stop" else 0.0
-
-        # min_token = 2048
-        # max_token = 16384
-        # if completion_tokens < min_token:
-        #     length_score = max(0, completion_tokens / min_token)
-        # elif completion_tokens > max_token:
-        #     over_ratio = (completion_tokens - max_token) / max_token
-        #     length_score = max(0, 1 - over_ratio)
-        # else:
-        #     length_score = 1.0
-
-        # TODO: LLM-as-a-Judge, or more scores
-
-        # request.result_scores = [finish_score, length_score]
-        request.result_scores = [finish_score]
-
-        return request
-
-
-    def _calculate_reward(self, scores: List[float]) -> float:
-        """Calculate the reward based on scores."""
-        if not scores:
-            return 1.0
-        return sum(scores)
+    def extract_vote(self, content: str) -> str:
+        if '#' in content[-5:]:
+            return None
+        if 'A' in content and 'B' in content:
+            return "A" if content.rindex("A") > content.rindex("B") else "B"
+        return "A" if 'A' in content else "B" if 'B' in content else None
 
 
     def _aggregate_load(self) -> dict:
@@ -236,6 +274,95 @@ class LLMNode:
         }
 
 
+    async def _select_k_nodes(self, exclude_nodes: List[str], k: int) -> List[str] | None:
+        if self.credit_ledger and await self.credit_ledger.get_account_credit(self.node_id) > 0:
+            target_node_list = await self.credit_ledger.select_node_by_pos(exclude_nodes=exclude_nodes, k=k+2)
+            if target_node_list:
+                target_node_ids = await self.communicator.select_k_nodes_from_candidates(target_node_list, k=k)
+                if len(target_node_ids) == k:
+                    return target_node_ids
+        return []
+
+
+    async def _launch_pairwise_vote(self, duel_id: str):
+        st = self.duel_states[duel_id]
+        content_A = st["A"].model_result.get("content")
+        content_B = st["B"].model_result.get("content")
+        user_input = st["A"].user_input
+
+        # TODO: Exclude nodes that are involved in the duel?
+        # exclude_nodes = [st["A"].executor_node_id, st["B"].executor_node_id, self.node_id]
+        exclude_nodes = []
+        judges_list = await self._select_k_nodes(exclude_nodes=exclude_nodes, k=K_JUDGES)
+        # TODO: Fallback to other methods to select judges
+        if not judges_list or len(judges_list) < K_JUDGES:
+            print(f"[{self.node_id}  ] Failed to select judges for duel {duel_id}.")
+            return
+
+        st["judges"] = judges_list
+
+        print(f"[{self.node_id}  ] Duel {duel_id} ready for judging by nodes {judges_list}")
+
+        for jnid in st["judges"]:
+            jr = ModelRequest(
+                source_node_addr=self.communicator.address,
+                type="request",
+                route_path=[(self.node_id, time.time())],
+                is_judge_task=True,
+                user_input=self._build_judge_payload(user_input, content_A, content_B, max_length_percontent=self.judge_length)
+            ).assign_id()
+
+            self.judge_dict.setdefault(jr.model_request_id, duel_id)
+
+            async with self.lock:
+                # TODO: Source = node?
+                self.send_to[jr.model_request_id] = (jnid, jr.model_copy(deep=True), "node")
+                self.dispatching_requests.setdefault(jnid, set()).add(jr.model_request_id)
+            _ = await self.communicator.prepare_and_send_request(payload=jr, type="ModelRequest", target_id=jnid)
+
+
+    async def _dispatch_duel(self, req: "ModelRequest", selected_node_id: str, source: str):
+        duel_id = str(uuid4())
+
+        reqA = req.copy_request_for_duel()
+        reqB = req.copy_request_for_duel()
+
+        nodeA = selected_node_id
+        another_node_list = await self._select_k_nodes(exclude_nodes=[nodeA] + [node_id for node_id, _ in req.route_path], k=1)
+        if another_node_list:
+            nodeB = another_node_list[0]
+        else:
+            # Failed to allocate two nodes for duel, re-enqueue the original request
+            await self.request_manager.enque_front_request(req, queue=source)
+            return
+
+        self.duel_dict.setdefault(reqA.model_request_id, (duel_id, "A"))
+        self.duel_dict.setdefault(reqB.model_request_id, (duel_id, "B"))
+
+        self.duel_states.setdefault(duel_id, {
+            "orig_req_id": req.model_request_id,
+            "A": None,
+            "B": None,
+            "judges": [],
+            "votes": [],
+            "source": source,
+            "start_ts": time.time()
+        })
+        self.duel_settle_locks.setdefault(duel_id, asyncio.Lock())
+
+        print(f"[{self.node_id}  ] Dispatching duel {duel_id}: (A) to {nodeA} and (B) to {nodeB}")
+
+        async with self.lock:
+            self.send_to[reqA.model_request_id] = (nodeA, reqA.model_copy(deep=True), source)
+            self.dispatching_requests.setdefault(nodeA, set()).add(reqA.model_request_id)
+        _ = await self.communicator.prepare_and_send_request(payload=reqA, type="ModelRequest", target_id=nodeA)
+
+        async with self.lock:
+            self.send_to[reqB.model_request_id] = (nodeB, reqB.model_copy(deep=True), source)
+            self.dispatching_requests.setdefault(nodeB, set()).add(reqB.model_request_id)
+        _ = await self.communicator.prepare_and_send_request(payload=reqB, type="ModelRequest", target_id=nodeB)
+
+
     async def handle_received_model_request(self, request: "ModelRequest", received_from_url: str):
         """Handle a received model request."""
         msg_type = request.type
@@ -251,6 +378,42 @@ class LLMNode:
 
         elif msg_type == "response":
             await self.handle_response_request(request, received_from_url)
+
+
+    async def _handle_duel_response(self, request: "ModelRequest"):
+        duel_id, role = self.duel_dict.pop(request.model_request_id, (None, None))
+        st = self.duel_states.get(duel_id)
+
+        # Return the first duel response to user.
+        if not st["A"] and not st["B"]:
+            print(f"[{self.node_id}  ] Duel {duel_id} first response received from {request.executor_node_id} for role {role}.")
+            orig_req_id = st["orig_req_id"]
+            final_req = request.model_copy(deep=True)
+            final_req.model_request_id = orig_req_id
+            self.resolve_future_timer(final_req)
+
+        st[role] = request
+        if st["A"] and st["B"]:
+            print(f"[{self.node_id}  ] Duel {duel_id} both responses received. Launching judging.")
+            await self._launch_pairwise_vote(duel_id)
+
+
+    async def _handle_judge_response(self, request: "ModelRequest"):
+        duel_id = self.judge_dict.pop(request.model_request_id, None)
+
+        if not duel_id or duel_id not in self.duel_states:
+            print(f"[{self.node_id}  ] Duel state lost for {duel_id}")
+            return
+
+        vote = self.extract_vote(request.model_result.get("content", ""))
+        async with self.duel_settle_locks[duel_id]:
+            st = self.duel_states[duel_id]
+            st["votes"].append((request.executor_node_id, vote))
+            st_length = len(st["votes"])
+
+        if st_length >= len(st["judges"]):
+            await self._settle_duel(duel_id)
+
 
 
     async def handle_response_request(self, request: "ModelRequest", received_from_url: str = None):
@@ -270,6 +433,23 @@ class LLMNode:
             else:
                 print(f"[{self.node_id}  ] No send_to info for request {request.model_request_id} on response from {received_from_url}.")
 
+        # Duel request
+        if request.model_request_id in self.duel_dict:
+            if self.credit_ledger:
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+
+            await self._handle_duel_response(request)
+            return
+
+        # Judge request
+        elif request.model_request_id in self.judge_dict:
+            if self.credit_ledger:
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+
+            await self._handle_judge_response(request)
+            return
+
+        # Normal request
         async with self.lock:
             last_hop = self.delegate_from.pop(request.model_request_id, None)
 
@@ -278,9 +458,7 @@ class LLMNode:
 
         else:
             if self.credit_ledger and request.executor_node_id != self.node_id:
-                reward_amount = self._calculate_reward(request.result_scores)
-                print(f"[{self.node_id}  ] Rewarding {request.executor_node_id} with {reward_amount} credits for request {request.model_request_id}.")
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=reward_amount)
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
 
             self.resolve_future_timer(request)
 
@@ -362,18 +540,12 @@ class LLMNode:
 
         # 2. Credit-based routing
         if self.credit_ledger and random.random() < self.offload_frequency:
-            if await self.credit_ledger.get_account_credit(self.node_id) > 0:
-                # Do not include nodes in the route path
-                exclude_nodes = [node_id for node_id, _ in request.route_path]
-                target_node_list = await self.credit_ledger.select_node_by_pos(
-                    exclude_nodes=exclude_nodes,
-                    seed=request.user_input,
-                    k=3
-                )
-                if target_node_list:
-                    target_node_id = await self.communicator.select_node_from_candidates(target_node_list)
-                    if target_node_id:
-                        return target_node_id, None
+            target_node_list = await self._select_k_nodes(
+                exclude_nodes=[node_id for node_id, _ in request.route_path],
+                k=1
+            )
+            if target_node_list:
+                return target_node_list[0], None
 
         # 3. Fallback to local model selection for queuing
         if random.random() < self.queue_frequency:
@@ -417,13 +589,17 @@ class LLMNode:
                     self.create_task(self.models.inference_request(selected_model, request))
 
                 else:
-                    print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
-                    # Use deepcopy! Sending function will modify the request
-                    async with self.lock:
-                        self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
-                        self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+                    if (not request.is_duel_req) and random.random() <= P_INSPECT:
+                        await self._dispatch_duel(request, selected_node_id, source)
 
-                    _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
+                    else:
+                        print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
+                        # Use deepcopy! Sending function will modify the request
+                        async with self.lock:
+                            self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
+                            self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+
+                        _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in dispatch loop: {e}")

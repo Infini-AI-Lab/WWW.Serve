@@ -3,672 +3,720 @@
         "idx": 0,
         "problem": "## Task B-1.3.\n\nA ship traveling along a river has covered $24 \\mathrm{~km}$ upstream and $28 \\mathrm{~km}$ downstream. For this journey, it took half an hour less than for traveling $30 \\mathrm{~km}$ upstream and $21 \\mathrm{~km}$ downstream, or half an hour more than for traveling $15 \\mathrm{~km}$ upstream and $42 \\mathrm{~km}$ downstream, assuming that both the ship and the river move uniformly.\n\nDetermine the speed of the ship in still water and the speed of the river.",
         "target": "node1",
-        "delay": 6.489409286324776
+        "delay": 1.541556355460082
     },
     {
         "idx": 1,
         "problem": "3. (6 points) A construction company was building a tunnel. When $\\frac{1}{3}$ of the tunnel was completed at the original speed, they started using new equipment, which increased the construction speed by $20 \\%$ and reduced the working hours to $80 \\%$ of the original. As a result, it took a total of 185 days to complete the tunnel. If they had not used the new equipment and continued at the original speed, it would have taken $\\qquad$ days to complete the tunnel.",
         "target": "node1",
-        "delay": 6.627710910779228
+        "delay": 4.201803365852697
     },
     {
         "idx": 2,
         "problem": "Prove that number $1$ can be represented as a sum of a finite number $n$ of real numbers, less than $1,$ not necessarily  distinct, which contain in their decimal representation only the digits $0$ and/or $7.$ Which is the least possible number $n$?",
         "target": "node1",
-        "delay": 9.302490862271078
+        "delay": 5.800004351514733
     },
     {
         "idx": 3,
         "problem": "4. Given the three sides of an obtuse triangle are 3, $4, x$, then the range of values for $x$ is ( ).\n(A) $1<x<7$.\n(B) $5 \\ll x<7$.\n(C) $1<x<\\sqrt{7}$.\n(D) $5<x<7$ or $1<x<\\sqrt{7}$.",
         "target": "node1",
-        "delay": 9.440822425650348
+        "delay": 7.08017307069124
     },
     {
         "idx": 4,
         "problem": "1. Solve the equation: $\\frac{8 x+13}{3}=\\frac{19-12 x}{2}-\\left(16 x-\\frac{7-4 x}{6}\\right)$.",
         "target": "node1",
-        "delay": 10.032988424977221
+        "delay": 12.284766554303266
     },
     {
         "idx": 5,
         "problem": "A right-angled triangle has side lengths that are integers. What could be the last digit of the area's measure, if the length of the hypotenuse is not divisible by 5?",
         "target": "node1",
-        "delay": 10.0774548439514
+        "delay": 13.282998509592145
     },
     {
         "idx": 6,
         "problem": "Let $a_n\\ (n\\geq 1)$ be the value for which $\\int_x^{2x} e^{-t^n}dt\\ (x\\geq 0)$ is maximal. Find $\\lim_{n\\to\\infty} \\ln a_n.$",
         "target": "node1",
-        "delay": 11.629174324473391
+        "delay": 27.025854843215967
     },
     {
         "idx": 7,
         "problem": "11. Given that the internal angles $A, B, C$ of $\\triangle ABC$ have opposite sides $a, b, c$ respectively, and $\\sqrt{3} b \\cos \\frac{A+B}{2}=c \\sin B$.\n(1) Find the size of $\\angle C$;\n(2) If $a+b=\\sqrt{3} c$, find $\\sin A$.",
         "target": "node1",
-        "delay": 18.833746531693983
+        "delay": 32.29539510629354
     },
     {
         "idx": 8,
         "problem": "Task B-4.2. Let $n$ be the number obtained by writing 2013 zeros between every two digits of the number 14641. Determine all solutions of the equation $x^{4}=n$ in the set $\\mathbb{C}$.",
         "target": "node1",
-        "delay": 21.32257204590264
+        "delay": 39.607413420254474
     },
     {
         "idx": 9,
         "problem": "6. As shown in Figure 2, let $P$ be a point inside the equilateral $\\triangle ABC$ with side length 12. Draw perpendiculars from $P$ to the sides $BC$, $CA$, and $AB$, with the feet of the perpendiculars being $D$, $E$, and $F$ respectively. Given that $PD: PE: PF = 1: 2: 3$. Then, the area of quadrilateral $BDPF$ is",
         "target": "node1",
-        "delay": 23.2054053508398
+        "delay": 41.43944536314028
     },
     {
         "idx": 10,
         "problem": "8.59 For each pair of real numbers $x, y$, the function $f$ satisfies the functional equation\n$$\nf(x)+f(y)=f(x+y)-x y-1 .\n$$\n\nIf $f(1)=1$, then the number of integers $n$ (where $n \\neq 1$) that satisfy $f(n)=n$ is\n(A) 0.\n(B) 1.\n(C) 2.\n(D) 3.\n(E) infinitely many.\n(30th American High School Mathematics Examination, 1979)",
         "target": "node1",
-        "delay": 36.806683702729124
+        "delay": 59.0370014876428
     },
     {
         "idx": 11,
         "problem": "9.6. Find the minimum value of the expression $(\\sqrt{2(1+\\cos 2 x)}-\\sqrt{36-4 \\sqrt{5}} \\sin x+2) \\cdot(3+2 \\sqrt{10-\\sqrt{5}} \\cos y-\\cos 2 y) \\cdot$ If the answer is not an integer, round it to the nearest integer.",
         "target": "node1",
-        "delay": 45.63516237941641
+        "delay": 59.99865917031953
     },
     {
         "idx": 12,
         "problem": "Given $0 \\leqslant x, y, z \\leqslant 1$, solve the equation:\n$$\\frac{x}{1+y+z x}+\\frac{y}{1+z+x y}+\\frac{z}{1+x+y z}=\\frac{3}{x+y+z} .$$",
         "target": "node1",
-        "delay": 46.73527841024893
+        "delay": 61.58611195635264
     },
     {
         "idx": 13,
         "problem": "## Problem Statement\n\nCalculate the definite integral:\n\n$$\n\\int_{0}^{3 / 2} \\frac{x^{2} \\cdot d x}{\\sqrt{9-x^{2}}}\n$$",
         "target": "node1",
-        "delay": 47.524792801040604
+        "delay": 67.15717949624099
     },
     {
         "idx": 14,
         "problem": "Example 6 The rules of a \"level-up game\" stipulate: On the $n$-th level, a die must be rolled $n$ times. If the sum of the points obtained from these $n$ rolls is greater than $2^{n}$, the level is considered passed. Questions:\n(1) What is the maximum number of levels a person can pass in this game?\n(2) What is the probability that he can pass the first three levels consecutively?\n(Note: A die is a uniform cube with points numbered $1,2,3,4,5,6$ on its faces. The number of points on the face that lands up after rolling the die is the result of the roll.)",
         "target": "node1",
-        "delay": 55.83483041687448
+        "delay": 67.38438549409852
     },
     {
         "idx": 15,
         "problem": "2. (9th Canadian Mathematical Competition) $N$ is an integer, its representation in base $b$ is 777. Find the smallest positive integer $b$ such that $N$ is a fourth power of an integer in decimal notation.",
         "target": "node1",
-        "delay": 61.890370465892005
+        "delay": 72.89256727252365
     },
     {
         "idx": 16,
         "problem": "Problem 6. (8 points) In the plane, there is a non-closed, non-self-intersecting broken line consisting of 31 segments (adjacent segments do not lie on the same straight line). For each segment, the line defined by it is constructed. It is possible for some of the 31 constructed lines to coincide. What is the minimum number of different lines that can be obtained?\n\nAnswer. 9.",
         "target": "node1",
-        "delay": 62.51495629496612
+        "delay": 75.0145687633723
     },
     {
         "idx": 17,
         "problem": "7.1. Solve the equation $\\frac{n!}{2}=k!+l!$ in natural numbers, where $n!=1 \\cdot 2 \\cdot \\ldots n$. If there are no solutions, write 0; if there is one solution, write $n$; if there are multiple solutions, write the sum of the values of $n$ for all solutions. Recall that a solution is a triplet $(n, k, l)$; if solutions differ in at least one component, they are considered different.",
         "target": "node1",
-        "delay": 64.39170100014701
+        "delay": 76.5248785533221
     },
     {
         "idx": 18,
         "problem": "Example 1 (Question from the 13th \"Hope Cup\" Invitational Competition) The real roots of the equations $x^{5}+x+1=0$ and $x+\\sqrt[5]{x}+1=0$ are $\\alpha, \\beta$ respectively, then $\\alpha+\\beta$ equals ( ).\nA. -1\nB. $-\\frac{1}{2}$\nC. $\\frac{1}{2}$\nD. 1",
         "target": "node1",
-        "delay": 67.39323510549953
+        "delay": 78.46564066167642
     },
     {
         "idx": 19,
         "problem": "Example 5 Given that $x_{1}, x_{2}, \\cdots, x_{10}$ are all positive integers, and $x_{1}+x_{2}+\\cdots+x_{10}=2005$, find the maximum and minimum values of $x_{1}^{2}+x_{2}^{2}+\\cdots+x_{10}^{2}$.",
         "target": "node1",
-        "delay": 73.20045922336921
+        "delay": 85.3151368246458
     },
     {
         "idx": 20,
         "problem": "Four, (50 points) In an $n \\times n$ grid, fill each cell with one of the numbers 1 to $n^{2}$. If no matter how you fill it, there must be two adjacent cells where the difference between the two numbers is at least 1011, find the minimum value of $n$.\n\n---\n\nThe translation preserves the original text's formatting and structure.",
         "target": "node1",
-        "delay": 73.37431737068329
+        "delay": 86.12141399220341
     },
     {
         "idx": 21,
         "problem": "1. If the set\n$$\nA=\\{1,2, \\cdots, 10\\}, B=\\{1,2,3,4\\},\n$$\n$C$ is a subset of $A$, and $C \\cap B \\neq \\varnothing$, then the number of such subsets $C$ is $(\\quad)$.\n(A) 256\n(B) 959\n(C) 960\n(D) 961",
         "target": "node1",
-        "delay": 77.01319420892179
+        "delay": 88.6208133975036
     },
     {
         "idx": 22,
         "problem": "Augusto has a wire that is $10 \\mathrm{~m}$ long. He makes a cut at a point on the wire, obtaining two pieces. One piece has a length of $x$ and the other has a length of $10-x$ as shown in the figure below:\n\n![](https://cdn.mathpix.com/cropped/2024_05_01_d02c2755ad3373bde08ag-05.jpg?height=645&width=1166&top_left_y=568&top_left_x=527)\n\nAugusto uses the two pieces of wire to make two squares.\n\na) What is the length of the side of each of the squares? What is the area of each?\n\nb) What is the length of each of the two pieces of wire so that the sum of the areas of the squares obtained is minimized?\n\nc) Suppose Augusto cuts the wire into ten pieces and uses each one to make a square. What should be the size of each piece so that the sum of the areas of the squares obtained is minimized?",
         "target": "node1",
-        "delay": 77.97918696643518
+        "delay": 94.58406405731061
     },
     {
         "idx": 23,
         "problem": "29. Choose any three numbers from $a, b, c, d, e$ and find their sum, exactly obtaining the ten different numbers $7,11,13,14,19,21,22,25,26,28$. Then $a+b+c+d+e=$ ( i). MATHEMATICE YoUTH CLUE A. 25\nB. 31\nC. 37\nD. 43",
         "target": "node1",
-        "delay": 78.52098237120563
+        "delay": 103.04474777577536
     },
     {
         "idx": 24,
         "problem": "Problem 3. In the school, there are 50 teachers, of whom 29 drink coffee, 28 drink tea, and 16 do not drink either coffee or tea. How many teachers drink only coffee, and how many drink only tea?",
         "target": "node1",
-        "delay": 81.84036041959061
+        "delay": 103.42148733241336
     },
     {
         "idx": 25,
         "problem": "12.180. A side of the triangle is equal to 15, the sum of the other two sides is 27. Find the cosine of the angle opposite the given side, if the radius of the inscribed circle in the triangle is 4.",
         "target": "node1",
-        "delay": 85.25298784960754
+        "delay": 105.30923581283648
     },
     {
         "idx": 26,
         "problem": "3. Let $AB$ be a chord of the unit circle $\\odot O$. If the area of $\\odot O$ is exactly equal to the area of the square with side $AB$, then $\\angle AOB=$ $\\qquad$ (to 0.001 degree).",
         "target": "node1",
-        "delay": 87.34275596281778
+        "delay": 105.57369230941764
     },
     {
         "idx": 27,
         "problem": "83. Fill in the following squares with $0, 1, 2, 3, 4, 5, 6, 7, 8, 9$ respectively, so that the sum of the two five-digit numbers is 99999. Then the number of different addition equations is $\\qquad$. $(a+b$ and $b+a$ are considered the same equation)",
         "target": "node1",
-        "delay": 91.78605772216501
+        "delay": 106.13866810184929
     },
     {
         "idx": 28,
         "problem": "On a board, the numbers from 1 to 2009 are written. A couple of them are erased and instead of them, on the board is written the remainder of the sum of the erased numbers divided by 13. After a couple of repetition of this erasing, only 3 numbers are left, of which two are 9 and 999. Find the third number.",
         "target": "node1",
-        "delay": 94.83242316611592
+        "delay": 106.35813033029524
     },
     {
         "idx": 29,
         "problem": "4. The number of real solutions to the equation $\\left|x^{2}-3 x+2\\right|+\\left|x^{2}+2 x-3\\right|=11$ is ( ).\n(A) 0\n(B) 1\n(C) 2\n(D) 4",
         "target": "node1",
-        "delay": 101.9021585974912
+        "delay": 115.61474263089566
     },
     {
         "idx": 30,
         "problem": "## Problem Statement\n\nCalculate the limit of the numerical sequence:\n\n$\\lim _{n \\rightarrow \\infty} \\frac{(n+1)^{4}-(n-1)^{4}}{(n+1)^{3}+(n-1)^{3}}$",
         "target": "node1",
-        "delay": 109.91329787613685
+        "delay": 123.00921836007251
     },
     {
         "idx": 31,
         "problem": "Condition of the problem\n\nFind the derivative.\n\n$$\ny=\\frac{1}{24}\\left(x^{2}+8\\right) \\sqrt{x^{2}-4}+\\frac{x^{2}}{16} \\arcsin \\frac{2}{x}, x>0\n$$",
         "target": "node1",
-        "delay": 110.76410641193489
+        "delay": 128.2757292328253
     },
     {
         "idx": 32,
         "problem": "\\section*{Problem 5 - 071225}\n\nAll ordered pairs of real numbers \\((x, y)\\) are to be determined for which the system of equations\n\n\\[\n\\begin{aligned}\nx \\cdot\\left(a x^{2}+b y^{2}-a\\right) & =0 \\\\\ny \\cdot\\left(a x^{2}+b y^{2}-b\\right) & =0\n\\end{aligned}\n\\]\n\nis satisfied. Here, \\(a\\) and \\(b\\) are real numbers with \\(a \\neq 0, b \\neq 0\\) and \\(a \\neq b\\).",
         "target": "node1",
-        "delay": 114.72904646961088
+        "delay": 129.29344975560505
     },
     {
         "idx": 33,
         "problem": "6. Let $[x]$ denote the greatest integer not exceeding the real number $x$,\n$$\n\\begin{array}{c}\nS=\\left[\\frac{1}{1}\\right]+\\left[\\frac{2}{1}\\right]+\\left[\\frac{1}{2}\\right]+\\left[\\frac{2}{2}\\right]+\\left[\\frac{3}{2}\\right]+ \\\\\n{\\left[\\frac{4}{2}\\right]+\\left[\\frac{1}{3}\\right]+\\left[\\frac{2}{3}\\right]+\\left[\\frac{3}{3}\\right]+\\left[\\frac{4}{3}\\right]+} \\\\\n{\\left[\\frac{5}{3}\\right]+\\left[\\frac{6}{3}\\right]+\\cdots}\n\\end{array}\n$$\n\nup to 2016 terms, where, for a segment with denominator $k$, there are $2 k$ terms $\\left[\\frac{1}{k}\\right],\\left[\\frac{2}{k}\\right], \\cdots,\\left[\\frac{2 k}{k}\\right]$, and only the last segment may have fewer than $2 k$ terms. Then the value of $S$ is",
         "target": "node1",
-        "delay": 118.00772831212925
+        "delay": 129.92127875481592
     },
     {
         "idx": 34,
         "problem": "40. The sum of three consecutive odd numbers is equal to the fourth power of a single-digit number. Find all such triples of numbers.",
         "target": "node1",
-        "delay": 126.5059214280302
+        "delay": 131.91996915841906
     },
     {
         "idx": 35,
         "problem": "Two is $10 \\%$ of $x$ and $20 \\%$ of $y$. What is $x - y$?\n$(\\mathrm {A}) \\ 1 \\qquad (\\mathrm {B}) \\ 2 \\qquad (\\mathrm {C})\\ 5 \\qquad (\\mathrm {D}) \\ 10 \\qquad (\\mathrm {E})\\ 20$",
         "target": "node1",
-        "delay": 138.38384066676
+        "delay": 141.6533835906134
     },
     {
         "idx": 36,
         "problem": "19. Given $m \\in\\{11,13,15,17,19\\}$, $n \\in\\{1999,2000, \\cdots, 2018\\}$.\nThen the probability that the unit digit of $m^{n}$ is 1 is ( ).\n(A) $\\frac{1}{5}$\n(B) $\\frac{1}{4}$\n(C) $\\frac{3}{10}$\n(D) $\\frac{7}{20}$\n(E) $\\frac{2}{5}$",
         "target": "node1",
-        "delay": 146.84920201244452
+        "delay": 154.06518275590798
     },
     {
         "idx": 37,
         "problem": "1. (6 points) Today is January 31, 2015, welcome to the 2015 \"Spring Cup\" Final. The calculation result of the expression $\\frac{\\frac{2015}{1}+\\frac{2015}{0.31}}{1+0.31}$ is",
         "target": "node1",
-        "delay": 179.34973254772427
+        "delay": 157.10547805216106
     },
     {
         "idx": 38,
         "problem": "Consider a regular hexagon with an incircle. What is the ratio of the area inside the incircle to the area of the hexagon?\n",
         "target": "node1",
-        "delay": 191.33097409265037
+        "delay": 187.21921322952812
     },
     {
         "idx": 39,
         "problem": "Let $ABC$ be a triangle with centroid $G$. Determine, with proof, the position of the point $P$ in the plane of $ABC$ such that $AP{\\cdot}AG + BP{\\cdot}BG + CP{\\cdot}CG$ is a minimum, and express this minimum value in terms of the side lengths of $ABC$.",
         "target": "node1",
-        "delay": 191.77326387189103
+        "delay": 193.31327648740483
     },
     {
         "idx": 40,
         "problem": "1. Four points $A, B, C, D$ in space are pairwise 1 unit apart, and points $P, Q$ move on line segments $AB, CD$ respectively. The minimum distance between point $P$ and $Q$ is",
         "target": "node1",
-        "delay": 208.22340344072802
+        "delay": 196.70575036892353
     },
     {
         "idx": 41,
         "problem": "The function $f$ maps the set of positive integers into itself, and satisfies the equation\n\n$$\nf(f(n))+f(n)=2 n+6\n$$\n\nWhat could this function be?",
         "target": "node1",
-        "delay": 220.756358056502
+        "delay": 198.78230879327424
     },
     {
         "idx": 42,
         "problem": "30. Find the remainder when the 2018-digit number $\\underbrace{\\overline{55 \\cdots}}_{2018 \\text { 555 }}$ is divided by 13.",
         "target": "node1",
-        "delay": 228.19217905792917
+        "delay": 205.72450177162423
     },
     {
         "idx": 43,
-        "problem": "11.233 a) The lengths of the edges $AB, AC, AD$ and $BC$ of an orthocentric tetrahedron are 5, 7, 8, and 6 cm, respectively. Find the lengths of the remaining two edges. b) Is the tetrahedron $ABCD$ orthocentric if $AB=8$ cm, $BC=12$ cm, and $DC=6$ cm?",
-        "target": "node2",
-        "delay": 19.99504589179459
+        "problem": "1. A line $l$ intersects a hyperbola $c$, then the maximum number of intersection points is ( ).\nA. 1\nB. 2\nC. 3\nD. 4",
+        "target": "node1",
+        "delay": 211.43495792891503
     },
     {
         "idx": 44,
-        "problem": "Let the curve $ C: y \\equal{} |x^2 \\plus{} 2x \\minus{} 3|$ and the line $ l$ passing through the point $ ( \\minus{} 3,\\ 0)$ with a slope $ m$ in $ x\\minus{}y$ plane. Suppose that $ C$ intersects to $ l$ at distinct two points other than the point $ ( \\minus{} 3,\\ 0)$, find the value of $ m$ for which the area of the figure bounded by $ C$ and $ l$ is minimized.",
-        "target": "node2",
-        "delay": 29.813295529765746
+        "problem": "1. Let the universal set be the set of real numbers. If $A=\\{x \\mid \\sqrt{x-2} \\leqslant 0\\}, B=\\left\\{x \\mid 10^{x^{2}-2}=10^{x}\\right\\}$, then $A \\cap \\bar{B}$ is\nA. $\\{2\\}$\nB. $\\{-1\\}$\nC. $\\{x \\mid x \\leqslant 2\\}$\nD. $\\varnothing$",
+        "target": "node1",
+        "delay": 215.21230472484115
     },
     {
         "idx": 45,
-        "problem": "For example, the rules of a \"level-passing game\" stipulate: on the $n$-th level, a die must be rolled $n$ times. If the sum of the points from these $n$ rolls is greater than $2^{n}$, the player passes the level. Questions:\n( I ) What is the maximum number of levels a person can pass in this game?\n( II ) What is the probability that he can pass the first three levels consecutively?\n(2004 National High School Mathematics Competition)\n(Note: A die is a uniform cube with points numbered $1,2,3,4,5,6$ on its faces. The number of points on the face that lands up is the result of the roll.)",
-        "target": "node2",
-        "delay": 42.702437942486625
+        "problem": "4. As shown in Figure 1, in the right triangular prism $A B C-A_{1} B_{1} C_{1}$, $A A_{1}=A B=A C$, and $M$ and $Q$ are the midpoints of $C C_{1}$ and $B C$ respectively. If for any point $P$ on the line segment $A_{1} B_{1}$, $P Q \\perp A M$, then $\\angle B A C$ equals ( ).\n(A) $30^{\\circ}$\n(B) $45^{\\circ}$\n(C) $60^{\\circ}$\n(D) $90^{\\circ}$",
+        "target": "node1",
+        "delay": 215.58589842744155
     },
     {
         "idx": 46,
-        "problem": "One of the receipts for a math tournament showed that $72$ identical trophies were purchased for $\\$$-$99.9$-, where the first and last digits were illegible.  How much did each trophy cost?",
-        "target": "node2",
-        "delay": 70.77020776609717
+        "problem": "7.242. $\\left(16 \\cdot 5^{2 x-1}-2 \\cdot 5^{x-1}-0.048\\right) \\lg \\left(x^{3}+2 x+1\\right)=0$.",
+        "target": "node1",
+        "delay": 217.72136672258176
     },
     {
         "idx": 47,
-        "problem": "$1.53 \\frac{\\sqrt{7+4 \\sqrt{3}} \\cdot \\sqrt{19-8 \\sqrt{3}}}{4-\\sqrt{3}}-\\sqrt{3}=2$.",
-        "target": "node2",
-        "delay": 103.67230967344489
+        "problem": "Example 1 In $\\triangle ABC$, it is known that $x \\sin A + y \\sin B + z \\sin C = 0$. Find the value of $(y + z \\cos A)(z + x \\cos B)(x + y \\cos C) + (y \\cos A + z)(z \\cos B + x)(x \\cos C + y)$.",
+        "target": "node1",
+        "delay": 217.77923901911504
     },
     {
         "idx": 48,
-        "problem": "Task 3. (15 points) Laboratory engineer Sergei received an object for research consisting of about 200 monoliths (a container designed for 200 monoliths, which was almost completely filled). Each monolith has a specific name (sandy loam or clayey loam) and genesis (marine or lake-glacial deposits). The relative frequency (statistical probability) that a randomly selected monolith will be sandy loam is $\\frac{1}{9}$. The relative frequency that a randomly selected\nmonolith will be marine clayey loam is $\\frac{11}{18}$. How many monoliths of lake-glacial genesis does the object contain, if there are no marine sandy loams among the sandy loams?",
-        "target": "node2",
-        "delay": 183.6120683504582
+        "problem": "In order for Mateen to walk a kilometer (1000m) in his rectangular backyard, he must walk the length 25 times or walk its perimeter 10 times. What is the area of Mateen's backyard in square meters?\n$\\text{(A)}\\ 40 \\qquad \\text{(B)}\\ 200 \\qquad \\text{(C)}\\ 400 \\qquad \\text{(D)}\\ 500 \\qquad \\text{(E)}\\ 1000$",
+        "target": "node1",
+        "delay": 230.79301479118288
     },
     {
         "idx": 49,
-        "problem": "Through each face of the cube, a plane was drawn. Into how many parts will these planes divide the space?",
-        "target": "node2",
-        "delay": 195.87774023015854
+        "problem": "11.005. The plane angle at the vertex of a regular triangular pyramid is $90^{\\circ}$. Find the ratio of the lateral surface area of the pyramid to the area of its base.",
+        "target": "node1",
+        "delay": 232.77349973628353
     },
     {
         "idx": 50,
-        "problem": "$17 \\cdot 23$ In $\\triangle A B C$, $A B=A C, \\angle A=80^{\\circ}$. If points $D, E$, and $F$ are on sides $B C, A C$, and $A B$ respectively, and $C E=C D, B F=B D$, then $\\angle E D F$ equals\n(A) $30^{\\circ}$.\n(B) $40^{\\circ}$.\n(C) $50^{\\circ}$.\n(D) $65^{\\circ}$.\n(E) None of these.",
-        "target": "node2",
-        "delay": 200.70899456390288
+        "problem": "The knights in a certain kingdom come in two colors. $\\frac{2}{7}$ of them are red, and the rest are blue. Furthermore, $\\frac{1}{6}$ of the knights are magical, and the fraction of red knights who are magical is $2$ times the fraction of blue knights who are magical. What fraction of red knights are magical?\n$\\textbf{(A) }\\frac{2}{9}\\qquad\\textbf{(B) }\\frac{3}{13}\\qquad\\textbf{(C) }\\frac{7}{27}\\qquad\\textbf{(D) }\\frac{2}{7}\\qquad\\textbf{(E) }\\frac{1}{3}$",
+        "target": "node1",
+        "delay": 242.9797027059676
     },
     {
         "idx": 51,
-        "problem": "6. For the geometric sequence $\\left\\{a_{n}\\right\\}$ with the first term $a_{1}=1536$, and common ratio $q=-\\frac{1}{2}$, let $\\pi_{n}$ denote the product of its first $n$ terms. The maximum value of $\\pi_{n}$ is $\\qquad$ .",
-        "target": "node2",
-        "delay": 201.85503000270978
+        "problem": "A father wants to divide his property among his children: first, he gives 1000 yuan and one-tenth of the remaining property to the eldest child, then 2000 yuan and one-tenth of the remaining property to the second child, then 3000 yuan and one-tenth of the remaining property to the third child, and so on. It turns out that each child receives the same amount of property. The father has $\\qquad$ children.",
+        "target": "node1",
+        "delay": 244.82531429042876
     },
     {
         "idx": 52,
-        "problem": "14. (1993 German Mathematical Olympiad) Every natural number $n$ greater than 2 can be expressed as the sum of several distinct natural numbers. Let the maximum number of these distinct natural numbers be $A(n)$. Find $A(n)$ (expressed in terms of $n$).",
-        "target": "node3",
-        "delay": 22.444330754266687
+        "problem": "Example 11 Let $x>0, y>0, \\sqrt{x}(\\sqrt{x}+2 \\sqrt{y})$ $=\\sqrt{y}(6 \\sqrt{x}+5 \\sqrt{y})$. Find the value of $\\frac{x+\\sqrt{x y}-y}{2 x+\\sqrt{x y}+3 y}$.",
+        "target": "node1",
+        "delay": 246.9050882681893
     },
     {
         "idx": 53,
-        "problem": "The number $2^{1997}$ has $m$ decimal digits, while the number $5^{1997}$ has $n$ digits. Evaluate $m+n$.",
-        "target": "node3",
-        "delay": 24.788123424970735
+        "problem": "9. Given is a regular tetrahedron of volume 1 . We obtain a second regular tetrahedron by reflecting the given one through its center. What is the volume of their intersection?",
+        "target": "node1",
+        "delay": 250.3481028092833
     },
     {
         "idx": 54,
-        "problem": "Let the notation $|X|$ represent the number of elements in the set $X$. Suppose $|X|=n\\left(n \\in \\mathbf{N}_{+}\\right)$, and all subsets of $X$ are $\\left\\{A_{1}, A_{2}, \\cdots, A_{m}\\right\\}\\left(m=2^{n}\\right)$. It is known that the sum of the number of elements in the intersections of these subsets is\n$$\nS=\\sum_{i=1}^{m}\\left(\\sum_{j=1}^{m}\\left|A_{i} \\cap A_{j}\\right|\\right)=n \\cdot 2^{2(n-1)} .\n$$\n\nTry to find the sum\n$$\nT=\\sum_{i=1}^{m-1}\\left(\\sum_{j=i+1}^{m}\\left|A_{i} \\cap A_{j}\\right|\\right) .\n$$\n(2002, Zhejiang Province Mathematical Summer Camp)",
-        "target": "node3",
-        "delay": 25.589424873638116
+        "problem": "Let's determine all the triples of numbers $(x, y, m)$ for which\n\n$$\n-2 x + 3 y = 2 m, \\quad x - 5 y = -11\n$$\n\nand $x$ is a negative integer, $y$ is a positive integer, and $m$ is a real number.",
+        "target": "node1",
+        "delay": 252.4995381224272
     },
     {
         "idx": 55,
-        "problem": "5. Let $a, b$ be real numbers, and the function $f(x)=a x+b$ satisfies: for any $x \\in[0,1]$, we have $|f(x)| \\leq 1$. Then the maximum value of $a b$ is $\\qquad$ .",
-        "target": "node3",
-        "delay": 45.55187154108233
+        "problem": "## Zadatak B-1.2.\n\nNa slici su prikazani pravilni peterokut. $A B C D E$ i kvadrat $A B F G$. Odredite mjeru kuta $F A D$.\n\n![](https://cdn.mathpix.com/cropped/2024_05_30_d455efeee432fadf0574g-01.jpg?height=234&width=257&top_left_y=1842&top_left_x=797)\n\n",
+        "target": "node1",
+        "delay": 267.4260034660527
     },
     {
         "idx": 56,
-        "problem": "2.31. The side of the base of a regular triangular pyramid is equal to $a$. A plane is drawn through one of the sides of the base, perpendicular to the opposite lateral edge and dividing this edge in the ratio $\\boldsymbol{m}: \\boldsymbol{n}$, counting from the vertex of the base. Determine the total surface area of the pyramid.",
-        "target": "node3",
-        "delay": 51.577257172169524
+        "problem": "The equation of line $\\ell_1$ is $24x-7y = 319$ and the equation of line $\\ell_2$ is $12x-5y = 125$. Let $a$ be the number of positive integer values $n$ less than $2023$ such that for both $\\ell_1$ and $\\ell_2$ there exists a lattice point on that line that is a distance of $n$ from the point $(20,23)$. Determine $a$.\n\n[i]Proposed by Christopher Cheng[/i]\n\n[hide=Solution][i]Solution. [/i] $\\boxed{6}$\nNote that $(20,23)$ is the intersection of the lines $\\ell_1$ and $\\ell_2$. Thus, we only care about lattice points on the the two lines that are an integer distance away from $(20,23)$. Notice that $7$ and $24$ are part of the Pythagorean triple $(7,24,25)$ and $5$ and $12$ are part of the Pythagorean triple $(5,12,13)$. Thus, points on $\\ell_1$ only satisfy the conditions when $n$ is divisible by $25$ and points on $\\ell_2$ only satisfy the conditions when $n$ is divisible by $13$. Therefore, $a$ is just the number of positive integers less than $2023$ that are divisible by both $25$ and $13$. The LCM of $25$ and $13$ is $325$, so the answer is $\\boxed{6}$.[/hide]",
+        "target": "node1",
+        "delay": 270.47185721068615
     },
     {
         "idx": 57,
-        "problem": "6. Find the set of values of the function $f(x)=1 / g(64 g(g(\\ln x)) / 1025)$, where\n\n$$\ng(x)=x^{5}+1 / x^{5} \\cdot(10 \\text { points })\n$$",
-        "target": "node3",
-        "delay": 53.60546241760176
+        "problem": "Let's determine $m$ such that the expression\n\n$$\nm x^{2}+(m-1) x+m-1\n$$\n\nis negative for all values of $x$.\n\n---\n\nDetermine $m$ so that the expression\n\n$$\nm x^{2}+(m-1) x+m-1\n$$\n\nis negative for all values of $x$.",
+        "target": "node1",
+        "delay": 270.63911363279243
     },
     {
         "idx": 58,
-        "problem": "2. The sum of the terms of an infinite geometric series is 2 and the sum of the squares of the terms of this series is 6 . Find the sum of the cubes of the terms of this series.",
-        "target": "node3",
-        "delay": 62.839060077523406
+        "problem": "2. How many integers $b$ exist such that the equation $x^{2}+b x-9600=0$ has an integer solution that is a multiple of both 10 and 12? Specify the largest possible $b$.",
+        "target": "node1",
+        "delay": 272.82296986015575
     },
     {
         "idx": 59,
-        "problem": "Let $T=\\frac{1}{4}x^{2}-\\frac{1}{5}y^{2}+\\frac{1}{6}z^{2}$ where $x,y,z$ are real numbers such that $1 \\leq x,y,z \\leq 4$ and $x-y+z=4$.\nFind the smallest value of $10 \\times T$.",
-        "target": "node3",
-        "delay": 68.02415818470183
+        "problem": "Example 1 The range of the function $y=-x^{2}-2 x+3(-5 \\leqslant x \\leqslant 0)$ is $(\\quad)$.\n(A) $(-\\infty, 4]$\n(B) $[3,12]$\n(C) $[-12,4]$\n(D) $[4,12]$",
+        "target": "node1",
+        "delay": 276.5223146907773
     },
     {
         "idx": 60,
-        "problem": "1. Given $\\sin \\alpha \\cdot \\cos \\beta=-\\frac{1}{2}$. Then the range of $\\cos \\alpha \\cdot \\sin \\beta$ is ( ).\n(A) $\\left[-1, \\frac{1}{2}\\right]$\n(B) $\\left[-\\frac{1}{2}, 1\\right]$\n(C) $\\left[-\\frac{3}{4}, \\frac{3}{4}\\right]$\n(D) $\\left[-\\frac{1}{2}, \\frac{1}{2}\\right]$",
-        "target": "node3",
-        "delay": 82.22533656997952
+        "problem": "4.206 There are two forces $f_{1}$ and $f_{2}$ acting on the origin $O$ of the coordinate axis,\n$$\\begin{array}{l}\n\\vec{f}_{1}=\\overrightarrow{O A}=\\sqrt{2}\\left(\\cos 45^{\\circ}+i \\sin 45^{\\circ}\\right) \\\\\n\\vec{f}_{2}=\\overrightarrow{O B}=2\\left[\\cos \\left(-30^{\\circ}\\right)+i \\sin \\left(-30^{\\circ}\\right)\\right]\n\\end{array}$$\n(1) Find the magnitude and direction of their resultant force;\n(2) Find the distance between points $A$ and $B$ (accurate to 0.1).",
+        "target": "node1",
+        "delay": 276.9171203915608
     },
     {
         "idx": 61,
-        "problem": "6. (20 points) Each of the two baskets contains white and black balls, and the total number of balls in both baskets is 25. A ball is randomly drawn from each basket. It is known that the probability that both drawn balls will be white is 0.54. Find the probability that both drawn balls will be black.",
-        "target": "node3",
-        "delay": 82.41170223569513
+        "problem": "6. Given that $\\overrightarrow{O A} \\perp \\overrightarrow{O B}$, and $|\\overrightarrow{O A}|=|\\overrightarrow{O B}|=24$. If $t \\in[0,1]$, then\n$$\n|t \\overrightarrow{A B}-\\overrightarrow{A O}|+\\left|\\frac{5}{12} \\overrightarrow{B O}-(1-t) \\overrightarrow{B A}\\right|\n$$\n\nthe minimum value is ( ).\n(A) $2 \\sqrt{193}$\n(B) 26\n(C) $24 \\sqrt{2}$\n(D) 24",
+        "target": "node1",
+        "delay": 289.3684244176398
     },
     {
         "idx": 62,
-        "problem": "a) Verify that if we choose 3 or more integers from the set $\\{6 k+1,6 k+2,6 k+3,6 k+4,6 k+5,6 k+6\\}$, at least two will differ by 1, 4, or 5.\n\nb) What is the largest number of positive integers less than or equal to 2022 that we can choose so that there are no two numbers whose difference is 1, 4, or 5?",
-        "target": "node3",
-        "delay": 115.79414896240473
+        "problem": "All three vertices of $\\bigtriangleup ABC$ lie on the parabola defined by $y=x^2$, with $A$ at the origin and $\\overline{BC}$ parallel to the $x$-axis. The area of the triangle is $64$. What is the length of $BC$?  \n$\\textbf{(A)}\\ 4\\qquad\\textbf{(B)}\\ 6\\qquad\\textbf{(C)}\\ 8\\qquad\\textbf{(D)}\\ 10\\qquad\\textbf{(E)}\\ 16$",
+        "target": "node1",
+        "delay": 291.40915375472906
     },
     {
         "idx": 63,
-        "problem": "3. In a convex quadrilateral $A B C D$, the lengths of sides $A B$ and $B C$ are equal, $D B$ is the bisector of angle $A D C$, and $A D: D C=4: 3$. Find the cosine of angle $A K B$, where $K$ is the intersection point of diagonals $A C$ and $B D$, and $B K: K D=1: 3$. (16 points)",
-        "target": "node3",
-        "delay": 121.32283320247089
+        "problem": "1B. If for the non-zero real numbers $a, b$ and $c$ the equalities $a^{2}+a=b^{2}, b^{2}+b=c^{2}$ and $c^{2}+c=a^{2}$ hold, determine the value of the expression $(a-b)(b-c)(c-a)$.",
+        "target": "node1",
+        "delay": 305.8012431685556
     },
     {
         "idx": 64,
-        "problem": "Problem 2. The numbers $d$ and $e$ are the roots of the quadratic trinomial $a x^{2}+b x+c$. Could it be that $a, b, c, d, e$ are consecutive integers in some order?",
-        "target": "node3",
-        "delay": 124.7879154958415
+        "problem": "2. As shown in Figure 1, the side length of rhombus $A B C D$ is $a$, and $O$ is a point on the diagonal $A C$, with $O A=a, O B=$ $O C=O D=1$. Then $a$ equals ( ).\n(A) $\\frac{\\sqrt{5}+1}{2}$\n(B) $\\frac{\\sqrt{5}-1}{2}$\n(C) 1\n(D) 2",
+        "target": "node1",
+        "delay": 311.0785520309524
     },
     {
         "idx": 65,
-        "problem": "(4) Let $(1+x)^{16}=\\sum_{i=0}^{16} a_{i} x^{i}$, then $\\sum_{i=1}^{8} i a_{i}=$ $\\qquad$",
-        "target": "node3",
-        "delay": 125.0319884303551
+        "problem": "V-2 If one side of the rectangle is reduced by $3 \\mathrm{~cm}$, and the other side is reduced by $2 \\mathrm{~cm}$, we get a square whose area is $21 \\mathrm{~cm}^{2}$ less than the area of the rectangle. Calculate the dimensions of the rectangle.\n\n![](https://cdn.mathpix.com/cropped/2024_06_05_627a0068487f082c2c6cg-1.jpg?height=219&width=271&top_left_y=1438&top_left_x=1208)",
+        "target": "node1",
+        "delay": 317.0143523087154
     },
     {
         "idx": 66,
-        "problem": "Problem 8.7.1. Given trapezoid $A B C D (B C \\| A D)$. Point $H$ on side $A B$ is such that $\\angle D H A=$ $90^{\\circ}$. It is known that $C H=C D=13$ and $A D=19$. Find the length of segment $B C$.\n\n![](https://cdn.mathpix.com/cropped/2024_05_06_1ea0b100610baa73554bg-10.jpg?height=412&width=579&top_left_y=309&top_left_x=437)",
-        "target": "node3",
-        "delay": 125.97181980190396
+        "problem": "1. Given $a, b>0, a \\neq 1$, and $a^{b}=\\log _{a} b$, then the value of $a^{a^{b}}-\\log _{a} \\log _{a} b^{a}$ is",
+        "target": "node1",
+        "delay": 317.10768929487256
     },
     {
         "idx": 67,
-        "problem": "Investigate the asymptotic behaviour of the solutions $y$ of the equation $x^5 + x^2y^2 = y^6$ that tend to zero as $x\\to0$.",
-        "target": "node3",
-        "delay": 126.1853789868666
+        "problem": "4. Let the sequence $\\left\\{a_{n}\\right\\}$ satisfy $a_{1}=0, a_{2}=1$, and for all $n \\geqslant 3, a_{n}$ is the smallest positive integer greater than $a_{n-1}$ such that there is no subsequence of $a_{1}, a_{2}, \\cdots, a_{n}$ that forms an arithmetic sequence. Find $a_{2014}$.",
+        "target": "node1",
+        "delay": 324.33419218565905
     },
     {
         "idx": 68,
-        "problem": "A circle centered at $A$ with a radius of 1 and a circle centered at $B$ with a radius of 4 are externally tangent. A third circle is tangent to the first two and to one of their common external tangents as shown. What is the radius of the third circle?\n\n$\\text{(A) }\\frac {1}{3} \\qquad \\text{(B) }\\frac {2}{5} \\qquad \\text{(C) }\\frac {5}{12} \\qquad \\text{(D) }\\frac {4}{9} \\qquad \\text{(E) }\\frac {1}{2}$",
-        "target": "node3",
-        "delay": 133.21492100589208
+        "problem": "In a stairwell, there are 10 mailboxes. One distributor drops a flyer into 5 mailboxes. Later, another distributor also drops a flyer into 5 mailboxes. What is the probability that this way, at least 8 mailboxes will contain a flyer?",
+        "target": "node1",
+        "delay": 336.486071385715
     },
     {
         "idx": 69,
-        "problem": "## Problem Statement\n\nCalculate the limit of the numerical sequence:\n\n$\\lim _{n \\rightarrow \\infty} \\frac{\\sqrt[3]{n^{3}-7}+\\sqrt[3]{n^{2}+4}}{\\sqrt[4]{n^{5}+5}+\\sqrt{n}}$",
-        "target": "node3",
-        "delay": 138.92746326586845
+        "problem": "18. (3 points) Li Shuang rides a bike at a speed of 320 meters per minute from location $A$ to location $B$. On the way, due to a bicycle malfunction, he pushes the bike and walks for 5 minutes to a place 1800 meters from $B$ to repair the bike. After 15 minutes, he continues towards $B$ at 1.5 times his original riding speed, and arrives at $B$ 17 minutes later than the expected time. What is Li Shuang's walking speed in meters per minute?",
+        "target": "node1",
+        "delay": 342.1890031647485
     },
     {
         "idx": 70,
-        "problem": "168. Another house number puzzle. Brown lives on a street with more than 20 but fewer than 500 houses (all houses are numbered in sequence: $1,2,3$ and so on). Brown discovered that the sum of all numbers from the first to his own, inclusive, is half the sum of all numbers from the first to the last, inclusive.\n\nWhat is the number of his house",
-        "target": "node3",
-        "delay": 143.07121144829568
+        "problem": "53. How many four-digit numbers contain at least one even digit?",
+        "target": "node1",
+        "delay": 349.5096485104131
     },
     {
         "idx": 71,
-        "problem": "Consider the system of equations $\\begin{cases} x^2 - 3y + p = z,  \\\\\ny^2 - 3z + p = x, \\\\\nz^2 - 3x + p = y \\end{cases}$ with real parameter $p$.\na) For $p \\ge 4$, solve the considered system in the field of real numbers.\nb) Prove that for $p \\in (1, 4)$ every real solution of the system satisfies $x = y = z$.\n\n(Jaroslav Svrcek)",
-        "target": "node3",
-        "delay": 151.3876519225079
+        "problem": "1. The range of the function $f(x)=\\sin x+\\cos x+\\tan x+$ $\\arcsin x+\\arccos x+\\arctan x$ is $\\qquad$ .",
+        "target": "node1",
+        "delay": 351.4286076557088
     },
     {
         "idx": 72,
-        "problem": "43rd Putnam 1982 Problem B1 ABC is an arbitary triangle, and M is the midpoint of BC. How many pieces are needed to dissect AMB into triangles which can be reassembled to give AMC? Solution",
-        "target": "node3",
-        "delay": 152.75723019650314
+        "problem": "Let $a_1,a_2,\\ldots,a_n$ be a permutation of the numbers $1,2,\\ldots,n$, with $n\\geq 2$. Determine the largest possible value of the sum \\[ S(n)=|a_2-a_1|+ |a_3-a_2| + \\cdots + |a_n-a_{n-1}| . \\]\r\n[i]Romania[/i]",
+        "target": "node1",
+        "delay": 362.85143103605304
     },
     {
         "idx": 73,
-        "problem": "5. Given the sum of several integers is 1,976. Find the maximum value of their product.",
-        "target": "node3",
-        "delay": 153.22481727231127
+        "problem": "There is a regular $17$-gon $\\mathcal{P}$ and its circumcircle $\\mathcal{Y}$ on the plane. \nThe vertices of $\\mathcal{P}$ are coloured in such a way that $A,B \\in \\mathcal{P}$ are of diff\u000berent colour, if the shorter arc connecting $A$ and $B$ on $\\mathcal{Y}$ has $2^k+1$ vertices, for some $k \\in \\mathbb{N},$ including $A$ and $B.$ \nWhat is the least number of colours which suffi\u000eces?",
+        "target": "node1",
+        "delay": 369.47043245879075
     },
     {
         "idx": 74,
-        "problem": "Find all continuously differentiable functions $ f: \\mathbb{R}\\to\\mathbb{R}$ such that for every rational number $ q,$ the number $ f(q)$ is rational and has the same denominator as $ q.$ (The denominator of a rational number $ q$ is the unique positive integer $ b$ such that $ q\\equal{}a/b$ for some integer $ a$ with $ \\gcd(a,b)\\equal{}1.$) (Note: $ \\gcd$ means greatest common divisor.)",
-        "target": "node3",
-        "delay": 153.50360567068805
+        "problem": "10.319. The diagonals of an isosceles trapezoid are perpendicular to each other, and its area is $a^{2}$. Determine the height of the trapezoid.",
+        "target": "node1",
+        "delay": 371.6837807470922
     },
     {
         "idx": 75,
-        "problem": "8. (10 points) Among the three given phrases “尽心尽力”, “力可拔山”, and “山穷水尽”, each Chinese character represents a number between 1 and 8, with the same character representing the same number and different characters representing different numbers. If the sum of the numbers represented by the characters in each phrase is 19, and “尽” > “山” > “力”, then the maximum value of “水” is $\\qquad$",
-        "target": "node3",
-        "delay": 157.99140866129045
+        "problem": "8. Find the last four digits of $7^{7^{-7}}$ (100 sevens).\n\nTranslate the above text into English, please keep the original text's line breaks and format, and output the translation result directly.",
+        "target": "node1",
+        "delay": 372.8065600205488
     },
     {
         "idx": 76,
-        "problem": "1.41 Let $a, b$ be positive integers. When $a^{2}+b^{2}$ is divided by $a+b$, the quotient is $q$ and the remainder is $r$. Find all pairs $(a, b)$ such that $q^{2}+r=1977$.\n\n---\n\nThe translation maintains the original format and line breaks as requested.",
-        "target": "node3",
-        "delay": 161.86313625026136
+        "problem": "1. Let $S=\\{1,2, \\cdots, n\\}, A$ be an arithmetic sequence with at least two terms, a positive common difference, all of whose terms are in $S$, and such that adding any other element of $S$ does not form an arithmetic sequence with the same common difference as $A$. Find the number of such $A$. (Here, a sequence with only two terms can also be considered an arithmetic sequence.)",
+        "target": "node1",
+        "delay": 380.088475785229
     },
     {
         "idx": 77,
-        "problem": "Let $A$ be the 221-digit number all of whose digits are 9s. What is the sum of the digits of $A^{2}$?",
-        "target": "node3",
-        "delay": 170.36670833039514
+        "problem": "Let $a_1, a_2, a_3, a_4$ be integers with distinct absolute values. In the coordinate plane, let $A_1=(a_1,a_1^2)$, $A_2=(a_2,a_2^2)$, $A_3=(a_3,a_3^2)$ and $A_4=(a_4,a_4^2)$. Assume that lines $A_1A_2$ and $A_3A_4$ intersect on the $y$-axis at an acute angle of $\\theta$. The maximum possible value for $\\tan \\theta$ can be expressed in the form $\\dfrac mn$ for relatively prime positive integers $m$ and $n$. Find $100m+n$.\n\n[i]Proposed by James Lin[/i]",
+        "target": "node1",
+        "delay": 380.9066691625149
     },
     {
         "idx": 78,
-        "problem": "4. Let $A_{1}, A_{2}, A_{3}, \\ldots, A_{11}, A_{12}$ be the consecutive vertices of a regular dodecagon with side $a=2 \\text{~cm}$. Let the diagonals $A_{1} A_{10}, A_{2} A_{11}$, and $A_{3} A_{12}$ intersect at points $A, B$, and $C$. Find the area $P_{A B C}$.",
-        "target": "node3",
-        "delay": 170.563356549716
+        "problem": "9.171. $0.6^{\\lg ^{2}(-x)+3} \\leq\\left(\\frac{5}{3}\\right)^{2 \\lg x^{2}}$.",
+        "target": "node1",
+        "delay": 382.0234766862559
     },
     {
         "idx": 79,
-        "problem": "# Task No. 1.4\n\n## Condition:\n\nFive friends - Kristina, Nadya, Marina, Liza, and Galia - meet in the park every day after buying ice cream from the shop around the corner. One day, the girls had a conversation.\n\nKristina: There were five people in front of me.\n\nMarina: I was the first in line!\n\nLiza: No one was behind me.\n\nNadya: I was standing next to Marina.\n\nGalia: Only one person was behind me.\n\nThe girls are friends, so they don't lie to each other. How many people were between Kristina and Nadya?",
-        "target": "node3",
-        "delay": 173.2720802579581
+        "problem": "2. Find all integer solutions of the inequality\n\n$$\nx^{2} y^{2}+y^{2} z^{2}+x^{2}+z^{2}-38(x y+z)-40(y z+x)+4 x y z+761 \\leq 0\n$$",
+        "target": "node1",
+        "delay": 382.51689219832014
     },
     {
         "idx": 80,
-        "problem": "Three mutually tangent spheres of radius $1$ rest on a horizontal plane. A sphere of radius $2$ rests on them. What is the distance from the plane to the top of the larger sphere?\n$\\text {(A)}\\ 3 + \\frac {\\sqrt {30}}{2} \\qquad \\text {(B)}\\ 3 + \\frac {\\sqrt {69}}{3} \\qquad \\text {(C)}\\ 3 + \\frac {\\sqrt {123}}{4}\\qquad \\text {(D)}\\ \\frac {52}{9}\\qquad \\text {(E)}\\ 3 + 2\\sqrt2$",
-        "target": "node3",
-        "delay": 174.71768787635148
+        "problem": "Solve the triangle whose area $t=357.18 \\mathrm{~cm}^{2}$, where the ratio of the sides is $a: b: c=4: 5: 6$.\n\n",
+        "target": "node1",
+        "delay": 386.8982124764514
     },
     {
         "idx": 81,
-        "problem": "7.4. In grandmother's garden, apples have ripened: Antonovka, Grushovka, and White Naliv. If there were three times as many Antonovka apples, the total number of apples would increase by $70 \\%$. If there were three times as many Grushovka apples, it would increase by $50 \\%$. By what percentage would the total number of apples change if there were three times as many White Naliv apples?",
-        "target": "node3",
-        "delay": 180.48008026150873
+        "problem": "Find all triples $(m,p,q)$ where $ m $ is a positive integer and $ p , q $ are primes.\n\\[ 2^m p^2 + 1 = q^5 \\]",
+        "target": "node1",
+        "delay": 396.18252749215446
     },
     {
         "idx": 82,
-        "problem": "In an isosceles trapezoid, the parallel bases have lengths $\\log 3$ and $\\log 192$, and the altitude to these bases has length $\\log 16$. The perimeter of the trapezoid can be written in the form $\\log 2^p 3^q$, where $p$ and $q$ are positive integers. Find $p + q$.",
-        "target": "node3",
-        "delay": 181.81289640742037
+        "problem": "15. As shown in the figure, the area of square $\\mathrm{ABCD}$ is 196 square centimeters, and it contains two partially overlapping smaller squares. The larger of the two smaller squares has an area that is 4 times the area of the smaller one, and the overlapping area of the two squares is 1 square centimeter. Therefore, the area of the shaded part is $\\qquad$ square centimeters.",
+        "target": "node1",
+        "delay": 398.3521620451777
     },
     {
         "idx": 83,
-        "problem": "1. Let $a_{m+n}=A$ and $a_{m-n}=B$ be terms of an arithmetic progression. Express the terms $a_{n}$ and $a_{m}$ in terms of $A$ and $B$.",
-        "target": "node3",
-        "delay": 182.15746485141315
+        "problem": "25. Anna, Bridgit and Carol run in a $100 \\mathrm{~m}$ race. When Anna finishes, Bridgit is $16 \\mathrm{~m}$ behind her and when Bridgit finishes, Carol is $25 \\mathrm{~m}$ behind her. The girls run at constant speeds throughout the race. How far behind was Carol when Anna finished?\nA $37 \\mathrm{~m}$\nB $41 \\mathrm{~m}$\nC $50 \\mathrm{~m}$\nD $55 \\mathrm{~m}$\nE $60 \\mathrm{~m}$",
+        "target": "node1",
+        "delay": 399.38084212529077
     },
     {
         "idx": 84,
-        "problem": "## Task $9 / 89$\n\nDetermine all non-negative real numbers $x$ that satisfy the equation:\n\n$$\n\\sqrt[3]{x}+\\sqrt[4]{x}=6 \\sqrt[6]{x}\n$$",
-        "target": "node3",
-        "delay": 184.1259424440039
+        "problem": "Given the complex number $z$ has a modulus of 1. Find\n$$\nu=\\frac{(z+4)^{2}-(\\bar{z}+4)^{2}}{4 i} \\text {. }\n$$\n\nthe maximum value.",
+        "target": "node1",
+        "delay": 399.4263081910928
     },
     {
         "idx": 85,
-        "problem": "2. Calculate the sum $f\\left(\\frac{1}{2020}\\right)+f\\left(\\frac{2}{2020}\\right)+\\ldots+f\\left(\\frac{2019}{2020}\\right)$, where $f(x)=\\frac{4^{x}}{4^{x}+2}, x \\in \\mathbb{R}$.",
-        "target": "node3",
-        "delay": 184.9868888921037
+        "problem": "## Problem 1\n\nPerform the calculations:\n\na) $7 \\cdot 147 - 7 \\cdot 47$ (1p)\n\nb) $(2+4+6+8+\\cdots+50)-(1+3+5+7+\\cdots+49)$ (2p)\n\nc) $10 \\cdot 9^{2} : 3^{2} - 3^{4} \\quad(2 \\text{p})$\n\nd) $(\\overline{a b} + \\overline{b c} + \\overline{c a}) : (a + b + c) \\quad$ (2p)",
+        "target": "node1",
+        "delay": 399.62928284551515
     },
     {
         "idx": 86,
-        "problem": "4. As shown in Figure 2, a chord $BC$ (not a diameter) of the semicircle $\\odot O$ is used as the axis of symmetry to fold the arc $\\overparen{BC}$, intersecting the diameter at point $D$. If $AD=4, BD=6$, then $\\tan B=$ ( .\n(A) $\\frac{1}{2}$\n(B) $\\frac{2}{3}$\n(C) $\\frac{3}{4}$\n(D) $\\frac{4}{5}$",
-        "target": "node3",
-        "delay": 185.53386458945062
+        "problem": "1. The curve $(x+2 y+a)\\left(x^{2}-y^{2}\\right)=0$ represents three straight lines intersecting at one point on the plane if and only if\nA. $a=0$\nB. $a=1$\nC. $a=-1$\nD. $a \\in \\mathbf{R}$",
+        "target": "node1",
+        "delay": 414.25527253775687
     },
     {
         "idx": 87,
-        "problem": "Let $a_1$, $a_2$, $\\ldots\\,$, $a_{2019}$ be a sequence of real numbers.  For every five indices $i$, $j$, $k$, $\\ell$, and $m$ from 1 through 2019, at least two of the numbers $a_i$, $a_j$, $a_k$, $a_\\ell$, and $a_m$ have the same absolute value.  What is the greatest possible number of distinct real numbers in the given sequence?",
-        "target": "node3",
-        "delay": 186.1454878386135
+        "problem": "9.27 In the metro train at the initial stop, 100 passengers entered. How many ways are there to distribute the exit of all these passengers at the next 16 stops of the train?",
+        "target": "node1",
+        "delay": 425.27295854744614
     },
     {
         "idx": 88,
-        "problem": "### 3.476 Find the maximum value of the expression\n\n$A=\\sin ^{2}\\left(\\frac{15 \\pi}{8}-4 \\alpha\\right)-\\sin ^{2}\\left(\\frac{17 \\pi}{8}-4 \\alpha\\right)$ for $0 \\leq \\alpha \\leq \\frac{\\pi}{8}$.",
-        "target": "node3",
-        "delay": 187.80309589243882
+        "problem": "2. In the complex plane, there are 7 points corresponding to the 7 roots of the equation $x^{7}=$ $-1+\\sqrt{3} i$. Among the four quadrants where these 7 points are located, only 1 point is in ( ).\n(A) the I quadrant\n(B) the II quadrant\n(C) the III quadrant\n(D) the IV quadrant",
+        "target": "node1",
+        "delay": 429.09036882107966
     },
     {
         "idx": 89,
-        "problem": "B3. Find all real solutions of the equation $\\left(x^{2}+x+3\\right)^{2}+3\\left(x^{2}+x-1\\right)=28$.",
-        "target": "node3",
-        "delay": 188.38781047613836
+        "problem": "Of the 36 students in Richelle's class, 12 prefer chocolate pie, 8 prefer apple, and 6 prefer blueberry. Half of the remaining students prefer cherry pie and half prefer lemon. For Richelle's pie graph showing this data, how many degrees should she use for cherry pie? \n\n$ \\text{(A)}\\ 10\\qquad\\text{(B)}\\ 20\\qquad\\text{(C)}\\ 30\\qquad\\text{(D)}\\ 50\\qquad\\text{(E)}\\ 72 $",
+        "target": "node1",
+        "delay": 434.1253449904697
     },
     {
         "idx": 90,
-        "problem": "An ant starts from a vertex of a cube, walking only along the edges, until it returns to the initial vertex, without passing through any vertex twice. What is the longest walk that this ant can make?",
-        "target": "node3",
-        "delay": 188.58185385066906
+        "problem": "Father played chess with uncle. For a won game, the winner received 8 crowns from the opponent, and for a draw, nobody got anything. Uncle won four times, there were five draws, and in the end, father earned 24 crowns.\n\nHow many games did father play with uncle?\n\n(M. Volfová)",
+        "target": "node1",
+        "delay": 437.32560973348586
     },
     {
         "idx": 91,
-        "problem": "A triangle has side lengths $10$, $10$, and $12$. A rectangle has width $4$ and area equal to the\narea of the triangle. What is the perimeter of this rectangle?\n$\\textbf{(A)}\\ 16 \\qquad \\textbf{(B)}\\ 24 \\qquad \\textbf{(C)}\\ 28 \\qquad \\textbf{(D)}\\ 32 \\qquad \\textbf{(E)}\\ 36$",
-        "target": "node3",
-        "delay": 191.98030900561963
+        "problem": "## Problem 4\n\nGiven the numbers $1,2,3, \\ldots, 1000$. Find the largest number $m$ with the property that by removing any $m$ numbers from these 1000 numbers, among the $1000-m$ remaining numbers, there exist two such that one divides the other.\n\nSelected problems by Prof. Cicortas Marius\n\nNote: a) The actual working time is 3 hours.\n\nb) All problems are mandatory.\n\nc) Each problem is graded from 0 to 7.\n\n## NATIONAL MATHEMATICS OLYMPIAD\n\nLocal stage - 15.02.2014\n\n## Grade IX\n\n## Grading Rubric",
+        "target": "node1",
+        "delay": 445.55961899231454
     },
     {
         "idx": 92,
-        "problem": "Ester goes to a stationery store to buy notebooks and pens. In this stationery store, all notebooks cost $\\mathrm{R} \\$ 6.00$. If she buys three notebooks, she will have R \\$4.00 left. If, instead, her brother lends her an additional $\\mathrm{R} \\$ 4.00$, she will be able to buy two notebooks and seven pens, all the same.\n\n(a) How much does each pen cost?\n\n(b) If she buys two notebooks and does not borrow money, how many pens can Ester buy?",
-        "target": "node3",
-        "delay": 207.94324776068692
+        "problem": "Problem 5.3. In five of the nine circles in the picture, the numbers 1, 2, 3, 4, 5 are written. Replace the digits $6, 7, 8, 9$ in the remaining circles $A, B, C, D$ so that the sums of the four numbers along each of the three sides of the triangle are the same.\n\n![](https://cdn.mathpix.com/cropped/2024_05_06_d55ea3e8288d58a3f771g-07.jpg?height=420&width=485&top_left_y=1241&top_left_x=484)\n\nConstruct the correspondence\n\n- In circle $A$\n- In circle $B$\n- In circle $C$\n- In circle $D$\n- the number 6 is placed.\n- the number 7 is placed.\n- the number 8 is placed.\n- the number 9 is placed.",
+        "target": "node1",
+        "delay": 452.2055244257769
     },
     {
         "idx": 93,
-        "problem": "8. Ryan's car averages 40 miles per gallon of gasoline, Tom's car averages 10 miles per gallon, Ryan and Tom drive their respective cars the same distance. Considering both cars together, on average, they can travel ( ) miles per gallon of gasoline.\n(A) 10\n(B) 16\n(C) 25\n(D) 30\n(E) 40",
-        "target": "node3",
-        "delay": 212.27219538858594
+        "problem": "The function $f: \\mathbb{R}\\rightarrow \\mathbb{R}$ is such that $f(x+1)=2f(x)$ for $\\forall$ $x\\in \\mathbb{R}$ and $f(x)=x(x-1)$ for $\\forall$ $x\\in (0,1]$. Find the greatest real number $m$, for which the inequality $f(x)\\geq -\\frac{8}{9}$ is true for \n$\\forall$ $x\\in (-\\infty , m]$.\n",
+        "target": "node1",
+        "delay": 455.85820121761907
     },
     {
         "idx": 94,
-        "problem": "# Task 4.\n\nIn modern conditions, digitalization - the conversion of all information into digital code - is considered relevant. Each letter of the alphabet can be assigned a non-negative integer, called the letter code. Then, the weight of a word can be defined as the sum of the codes of all the letters in that word. Is it possible to encode the letters O, P, S, T, Ь, Я with elementary codes, each consisting of a single digit from 0 to 9, so that the weight of the word \"СТО\" is not less than the weight of the word \"ПЯТЬСОТ\"? If such encoding is possible, does it allow for the unambiguous restoration of a word from its code?",
-        "target": "node3",
-        "delay": 214.31477437045902
+        "problem": "18.3.19 $\\star \\star$ Find all positive integer triples $(a, b, c)$ that satisfy $a^{2}+b^{2}+c^{2}=2005$ and $a \\leqslant b \\leqslant c$.",
+        "target": "node1",
+        "delay": 456.03447053080265
     },
     {
         "idx": 95,
-        "problem": "## Problem Statement\n\nCalculate the indefinite integral:\n\n$$\n\\int \\frac{x^{2}+\\ln x^{2}}{x} d x\n$$",
-        "target": "node3",
-        "delay": 226.46348850610138
+        "problem": "5. Through the vertex $M$ of some angle, a circle is drawn, intersecting the sides of the angle at points $N$ and $K$, and the bisector of this angle at point $L$. Find the sum of the lengths of segments $M N$ and $M K$, if the area of $M N L K$ is 49, and the angle $L M N$ is $30^{\\circ}$.",
+        "target": "node1",
+        "delay": 461.5778201919451
     },
     {
         "idx": 96,
-        "problem": "12.1. Find the smallest natural number consisting of identical digits and divisible by 18.\n\n$$\n(5-6 \\text { cl.) }\n$$",
-        "target": "node3",
-        "delay": 228.00520279072845
+        "problem": "4. Let $A$ and $B$ be $n$-digit numbers, where $n$ is odd, which give the same remainder $r \\neq 0$ when divided by $k$. Find at least one number $k$, which does not depend on $n$, such that the number $C$, obtained by appending the digits of $A$ and $B$, is divisible by $k$.",
+        "target": "node1",
+        "delay": 467.208528646424
     },
     {
         "idx": 97,
-        "problem": "4. Let $f(x)=\\frac{1+x}{1-x}$, and denote $f_{1}(x)=f(x)$. If $f_{n+1}(x)=f\\left(f_{n}(x)\\right)$, then $f_{2023}(x)=$",
-        "target": "node3",
-        "delay": 231.1337835659656
+        "problem": "7. Given that $z$ is a complex number, and $|z|=1$. When $\\mid 1+z+$ $3 z^{2}+z^{3}+z^{4}$ | takes the minimum value, the complex number $z=$ $\\qquad$ or . $\\qquad$",
+        "target": "node1",
+        "delay": 469.56919259841425
     },
     {
         "idx": 98,
-        "problem": "Equilateral triangle $ABC$ has side length $840$. Point $D$ lies on the same side of line $BC$ as $A$ such that $\\overline{BD} \\perp \\overline{BC}$. The line $\\ell$ through $D$ parallel to line $BC$ intersects sides $\\overline{AB}$ and $\\overline{AC}$ at points $E$ and $F$, respectively. Point $G$ lies on $\\ell$ such that $F$ is between $E$ and $G$, $\\triangle AFG$ is isosceles, and the ratio of the area of $\\triangle AFG$ to the area of $\\triangle BED$ is $8:9$. Find $AF$.",
-        "target": "node3",
-        "delay": 235.04793335487324
+        "problem": "Example: Given the radii of the upper and lower bases of a frustum are 3 and 6, respectively, and the height is $3 \\sqrt{3}$, the radii $O A$ and $O B$ of the lower base are perpendicular, and $C$ is a point on the generatrix $B B^{\\prime}$ such that $B^{\\prime} C: C B$ $=1: 2$. Find the shortest distance between points $A$ and $C$ on the lateral surface of the frustum.",
+        "target": "node1",
+        "delay": 472.48639469133025
     },
     {
         "idx": 99,
-        "problem": "7. Given the functions $f(x)=x^{2}+2 b x+1$ and $g(x)=2 a(x+b)$, where $x$, $a$, and $b$ are all real numbers. The set of real number pairs $(a, b)$ that make the graphs of $y=f(x)$ and $y=g(x)$ not intersect in the $x O y$ plane is denoted as $A$. Then, the area of the figure $S$ represented by $A$ in the $a O b$ plane is $\\qquad$.",
-        "target": "node4",
-        "delay": 15.278737616774276
+        "problem": "5. Given positive real numbers $a$ and $b$ satisfy $a+b=1$, then $M=$ $\\sqrt{1+a^{2}}+\\sqrt{1+2 b}$ the integer part is",
+        "target": "node1",
+        "delay": 476.1570409951769
     },
     {
         "idx": 100,
-        "problem": "13. The greatest among the common divisors of two non-zero natural numbers is called the greatest common divisor (GCD) of these two numbers. If the greatest common divisor of two non-zero natural numbers is 1, then these two numbers are called coprime or relatively prime, for example, 2 and 3 are coprime, 3 and 8 are coprime; 12 and 15 are not coprime, because their greatest common divisor is 3. Among the natural numbers not exceeding 81, there are _ numbers that are coprime with 81.",
-        "target": "node4",
-        "delay": 16.611905644341494
+        "problem": "1. Arrange the consecutive natural numbers from 1 to 99 in sequence to form a large number:\n1234567891011…979899,\nBy extracting four consecutive digits, you can get a four-digit number, such as 5678, 1011, etc. Among the four-digit numbers obtained by this method, the largest is . $\\qquad$",
+        "target": "node1",
+        "delay": 476.18073414502635
     },
     {
         "idx": 101,
-        "problem": "2. $\\quad$ Solve the equation $\\sqrt{\\frac{2 t}{1+t^{2}}}+\\sqrt[3]{\\frac{1-t^{2}}{1+t^{2}}}=1$.",
-        "target": "node4",
-        "delay": 19.032382450483084
+        "problem": "1. Simplify\n$$\n\\sqrt{1+2 \\sin \\alpha \\cdot \\cos \\alpha}+\\sqrt{1-2 \\sin \\alpha \\cdot \\cos \\alpha}\n$$\n$\\left(0^{\\circ}<\\alpha \\leqslant 90^{\\circ}\\right)$ The result is $\\qquad$ .",
+        "target": "node1",
+        "delay": 483.7051217188883
     },
     {
         "idx": 102,
-        "problem": "8. Let the function $f(x)=x^{3}+3 x^{2}+6 x+14$, and $f(a)=1, f(b)=19$. Then $a+b=(\\quad)$.\n(A) 2\n(B) 1\n(C) 0\n(D) -2",
-        "target": "node4",
-        "delay": 24.672136488597264
+        "problem": "8. (15 points) A thin ray of light falls on a thin converging lens at a distance of $x=10$ cm from its optical center. The angle between the incident ray and the plane of the lens $\\alpha=45^{\\circ}$, and the angle between the refracted ray and the plane of the lens $\\beta=30^{\\circ}$. Determine its focal length.",
+        "target": "node1",
+        "delay": 484.5124905893926
     },
     {
         "idx": 103,
-        "problem": "## Task B-3.1.\n\nDetermine all solutions of the equation $\\left|\\cos ^{2} x-2 \\sin x\\right|=2$.",
-        "target": "node4",
-        "delay": 32.60025165377585
+        "problem": "8. If $n$ is a natural number less than 50, find all values of $n$ such that the values of the algebraic expressions $4n+5$ and $7n+6$ have a common divisor greater than 1.",
+        "target": "node1",
+        "delay": 487.13415937078173
     },
     {
         "idx": 104,
-        "problem": "3. In 2018, Pavel will be as many years old as the sum of the digits of the year he was born. How old is Pavel?",
-        "target": "node4",
-        "delay": 36.40544374726247
+        "problem": "6. Let set $A=\\{1,2,3,4,5,6\\}$, and a one-to-one mapping $f: A \\rightarrow A$ satisfies that for any $x \\in A$, $f(f(f(x)))$ $=x$. Then the number of mappings $f$ that satisfy the above condition is ( ).\n(A) 40\n(B) 41\n(C) 80\n(D) 81",
+        "target": "node1",
+        "delay": 493.50071195025595
     },
     {
         "idx": 105,
-        "problem": "4. Inside triangle $ABC$, where $\\angle C=70^{\\circ}, \\angle B=80^{\\circ}$, a point $M$ is taken such that triangle $CMB$ is equilateral. Find the angles $MAB$ and $MAC$.",
-        "target": "node4",
-        "delay": 94.30177046022382
+        "problem": "9. (16 points) Let the real number $t \\in [0, \\pi]$. If the equation $\\cos (x+t)=1-\\cos x$ has a solution for $x$, find the range of values for $t$.\n\n",
+        "target": "node1",
+        "delay": 506.17821455232723
     },
     {
         "idx": 106,
-        "problem": "For which natural numbers $n$ is the expression $P=\\left(n^{2}-4\\right)\\left(n^{2}-1\\right)\\left(n^{2}+3\\right)$ divisible by 2880?",
-        "target": "node4",
-        "delay": 105.0324056550314
+        "problem": "5. 5.1. Find the largest natural number in which all digits are different and any two adjacent digits differ by 6 or 7.",
+        "target": "node1",
+        "delay": 516.0289588371205
     },
     {
         "idx": 107,
-        "problem": "(4) Given $a>0, b>0$, if $x$ represents the smallest of the three numbers $1$, $a$, and $\\frac{b}{a^{2}+b^{2}}$, when $a$ and $b$ vary, the maximum value of $x$ is $\\qquad$ .",
-        "target": "node4",
-        "delay": 114.214009924333
+        "problem": "5. For a convex $n$-sided polygon, if circles are constructed with each side as the diameter, the convex $n$-sided polygon must be covered by these $n$ circles. Then the maximum value of $n$ is: ( ).\n(A) 3 .\n(B) 4 .\n(C) 5 .\n(D) Greater than 5 .",
+        "target": "node1",
+        "delay": 527.4136948565664
     },
     {
         "idx": 108,
-        "problem": "4. Given an isosceles triangle with a vertex angle of $20^{\\circ}$ and a base length of $a$, the length of the legs is $b$. Then the value of $\\frac{a^{3}+b^{3}}{a b^{2}}$ is $\\qquad$",
-        "target": "node4",
-        "delay": 126.5841853318355
+        "problem": "15. Lucia and Carla are playing bingo against each other (with no other opponents). Each has a card with 15 numbers; the two cards have exactly 4 numbers in common. What is the probability that, after 89 numbers have been drawn, neither of them has yet completed a bingo?\n(A) $2 / 45$\n(B) $3 / 89$\n(C) $1 / 15$\n(D) $1 / 30$\n(E) $1 / 90$",
+        "target": "node1",
+        "delay": 546.7682238938548
     },
     {
         "idx": 109,
-        "problem": "8. Find all integer values for $X$ and $Y$ such that $X^{4}+4 Y^{4}$ is a prime number.",
-        "target": "node4",
-        "delay": 165.0567517452814
+        "problem": "# Problem 6. (3 points)\n\nThree runners are moving along a circular track at constant equal speeds. When two runners meet, they instantly turn around and start running in opposite directions.\n\nAt some point, the first runner meets the second. After 15 minutes, the second runner meets the third for the first time. Another 25 minutes later, the third runner meets the first for the first time.\n\nHow many minutes does it take for one runner to complete the entire track?",
+        "target": "node1",
+        "delay": 549.7158669118148
     },
     {
         "idx": 110,
-        "problem": "5. Which number is greater: $2023^{2023}$ or $2022^{2024} ?$\n\n#",
-        "target": "node4",
-        "delay": 174.9984229267143
+        "problem": "## Task 2 - 080522\n\nIn a warehouse, there are three times as many kilograms of wheat as in a second one. After removing $85000 \\mathrm{~kg}$ from the first and $5000 \\mathrm{~kg}$ from the second, the stocks were equal.\n\nHow many tons of wheat were in the first and how many in the second warehouse before the removal?",
+        "target": "node1",
+        "delay": 550.1245148157886
     },
     {
         "idx": 111,
-        "problem": "5. [5 points] A magician has a set of $16^{2}$ different cards. Each card has one side red and the other side blue; on each card, there is a natural number from 1 to 16 written on both sides. We will call a card a duplicate if the numbers on both sides of the card are the same. The magician wants to draw two cards such that at least one of them is a duplicate, and no number appears on both drawn cards simultaneously. In how many ways can he do this?",
-        "target": "node4",
-        "delay": 191.23231016620545
+        "problem": "$17 \\cdot 27$ As shown in the figure, in $\\triangle A B C$, $\\angle A=42^{\\circ}$. If the trisectors of $\\angle B$ and $\\angle C$ intersect at $D, E$. Then the degree measure of $\\angle B D C$ is\n(A) $67^{\\circ}$.\n(B) $84^{\\circ}$.\n(C) $88^{\\circ}$.\n(D) $110^{\\circ}$.\n(China Beijing Junior High School Mathematics Competition, 1990);",
+        "target": "node1",
+        "delay": 553.3704311523245
+    },
+    {
+        "idx": 112,
+        "problem": "Example 5. Expand the function\n\n$$\nf(z)=\\frac{z}{z^{2}-2 z-3}\n$$\n\ninto a Taylor series in the neighborhood of the point $z_{0}=0$ using expansion (12), and find the radius of convergence of the series.",
+        "target": "node1",
+        "delay": 558.4020305975689
+    },
+    {
+        "idx": 113,
+        "problem": "7. The set \n$\\left\\{x \\left\\lvert\\,-1 \\leqslant \\log _{\\frac{1}{x}} 10<-\\frac{1}{2}\\right., x \\in \\mathbf{N}\\right\\}$ has $\\qquad$ proper subsets.",
+        "target": "node1",
+        "delay": 562.8985758365653
+    },
+    {
+        "idx": 114,
+        "problem": "2. Given $0<x<1$. Simplify\n$$\n=\\quad \\sqrt{\\left(x-\\frac{1}{x}\\right)^{2}+4}-\\sqrt{\\left(x+\\frac{1}{x}\\right)^{2}-4}\n$$",
+        "target": "node1",
+        "delay": 569.0739330705441
+    },
+    {
+        "idx": 115,
+        "problem": "7. Given the equality\n\n$$\n\\left(a^{m_{1}}-1\\right) \\ldots\\left(a^{m_{n}}-1\\right)=\\left(a^{k_{1}}+1\\right) \\ldots\\left(a^{k_{l}}+1\\right)\n$$\n\nwhere $a, n, l$ and all exponents are natural numbers, and $a>1$. Find all possible values of the number $a$.",
+        "target": "node1",
+        "delay": 571.7719513293891
+    },
+    {
+        "idx": 116,
+        "problem": "Find two such common fractions - one with a denominator of 8, the other with a denominator of 13 - so that they are not equal, but the difference between the larger and the smaller of them is as small as possible.\n\n#",
+        "target": "node1",
+        "delay": 572.6999460571136
+    },
+    {
+        "idx": 117,
+        "problem": "1. As shown in Figure 1, in the Cartesian coordinate system, the graph of the quadratic function $y=a x^{2}+m c(a \\neq$ $0)$ passes through three vertices $A$, $B$, and $C$ of the square $A B O C$, and $a c=-2$. Then the value of $m$ is ( ).\n(A) 1\n(B) -1\n(C) 2\n(D) -2",
+        "target": "node1",
+        "delay": 584.6508411679556
+    },
+    {
+        "idx": 118,
+        "problem": "Let $a_1,a_2,a_3,a_4,a_5$ be distinct real numbers. Consider all sums of the form $a_i + a_j$ where $i,j \\in \\{1,2,3,4,5\\}$ and $i \\neq j$. Let $m$ be the number of distinct numbers among these sums. What is the smallest possible value of $m$?",
+        "target": "node1",
+        "delay": 590.4853019066007
+    },
+    {
+        "idx": 119,
+        "problem": "3. There are ten small balls of the same size, five of which are red and five are white. Now, these ten balls are arranged in a row arbitrarily, and numbered from left to right as $1,2, \\cdots, 10$. Then the number of arrangements where the sum of the numbers of the red balls is greater than the sum of the numbers of the white balls is. $\\qquad$",
+        "target": "node1",
+        "delay": 592.6347274964678
     }
 ]

@@ -7,6 +7,10 @@ import json
 import time
 from pathlib import Path
 
+import random
+random.seed(42)
+
+
 from www_serve.core_node import LLMNode
 from www_serve.credit_ledger import CreditLedger
 
@@ -39,9 +43,20 @@ async def node_start_join(node: LLMNode, url: str, delay=0):
 async def main():
 
     ##### Initialize nodes and credit ledger #####
-    ledger = CreditLedger()
+    # TODO: Change to User input path
+    RESULT_PATH = Path(__file__).parent.parent / "results"
+    result_folder = RESULT_PATH / f"decentralized_simulation"
+    os.makedirs(result_folder, exist_ok=True)
+    ledger = CreditLedger(duel_record_pth=result_folder / "duel_record.csv")
+
 
     CONFIG_PATH = Path(__file__).parent.parent.parent / "node_configs"
+
+    node0 = await LLMNode.init_with_ledger(
+        node_id="node0",
+        config_path=CONFIG_PATH / "node0.yaml",
+        ledger=ledger,
+    )
     node1 = await LLMNode.init_with_ledger(
         node_id="node1",
         config_path=CONFIG_PATH / "node1.yaml",
@@ -66,16 +81,19 @@ async def main():
     await asyncio.sleep(1)
 
     ##### Start nodes and form network #####
+    await node0.start()
     await node1.start()
     await node2.start()
     await node3.start()
     await node4.start()
 
+    await node1.join_network(node0.communicator.address.to_url())
     await node2.join_network(node1.communicator.address.to_url())
     await node3.join_network(node2.communicator.address.to_url())
     await node4.join_network(node3.communicator.address.to_url())
 
     nodes = {
+        "node0": node0,
         "node1": node1,
         "node2": node2,
         "node3": node3,
@@ -96,6 +114,20 @@ async def main():
     # asyncio.create_task(node_offline(node4, delay=400))
 
     all_results = await asyncio.gather(*tasks)
+
+
+    # TODO: For now, wait until all duel requests are done
+    current_time = time.time()
+    while time.time() - current_time < 300:
+        finished = True
+        for node in nodes.values():
+            if len(node._tasks) != 3:
+                finished = False
+
+        if finished:
+            break
+        await asyncio.sleep(5)
+
 
     ##### Save results and stats #####
     RESULT_PATH = Path(__file__).parent.parent / "results"

@@ -11,8 +11,8 @@ ledger_params:
   initial_staked: 0.0
 
 models:
-  - model_path: Qwen/Qwen3-8B
-    base_url: http://192.168.102.18:30000
+  - model_path: Qwen/Qwen3-4B
+    base_url: http://192.168.102.11:30000
     api_key: None
 
     gen_params:
@@ -21,4 +21,4 @@ models:
       top_p: 0.95
 
     dispatch_params:
-      target_token_usage: 0.6
+      target_token_usage: 0.7
