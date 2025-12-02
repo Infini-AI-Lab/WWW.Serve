@@ -1,6 +1,7 @@
 from typing import Union, List, Dict, TYPE_CHECKING
 from openai import AsyncOpenAI
 import time
+from .mlc_tracker import RequestTracker
 
 
 if TYPE_CHECKING:
@@ -51,6 +52,9 @@ class ModelManager:
             self.server_stats_history[model_path] = []
             self.base_urls[model_path] = base_url
 
+        # Tracker for manually adjusting running/waiting counts for MLC backends
+        self.request_tracker = RequestTracker(self)
+
 
     def _format_response(self, meta_response) -> dict:
         """Format the response from the model."""
@@ -72,6 +76,9 @@ class ModelManager:
         gen_params = self.gen_params[model_path]
 
         try:
+            # Mark this request as running (manual tracking for MLC backends)
+            if getattr(self.node.policy.model_policy, "uses_request_tracker", False):
+                await self.request_tracker.start_request(model_path)
             meta_response = await self.clients[model_path].chat.completions.create(
                 model = model_path,
                 messages = [{
@@ -117,6 +124,13 @@ class ModelManager:
             }
             request.set_response(response, executor_node_id=self.node.node_id)
             await self.node.handle_response_request(request)
+        finally:
+            # Ensure we decrement running count regardless of success/error for MLC backends
+            if getattr(self.node.policy.model_policy, "uses_request_tracker", False):
+                try:
+                    await self.request_tracker.end_request(model_path)
+                except Exception:
+                    pass
 
 
     def get_server_stats(self, model_path: str) -> Dict:

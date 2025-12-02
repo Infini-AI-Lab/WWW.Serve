@@ -24,6 +24,11 @@ class DefaultMLCLLMRoutingPolicy(BaseRoutingPolicy):
 class DefaultMLCLLMModelPolicy(BaseModelPolicy):
     """Default model policy for MLC LLM."""
 
+    def __init__(self):
+        # signal to the runtime that this policy expects manual request tracking
+        # (i.e., increment/decrement running counts when POSTs are issued)
+        self.uses_request_tracker = True
+
     @staticmethod
     async def _get_mlcllm_metrics(
         server_url: str,
