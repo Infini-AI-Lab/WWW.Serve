@@ -3,10 +3,10 @@ import asyncio
 from typing import Dict, Union, List, TYPE_CHECKING
 import time
 import json
-import numpy as np
+import uuid
 
 
-from .entities import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest
+from .entities import Address, PeerInfo, CommRequest, NodeRequest, EmptyRequest, AsyncSafeDict
 
 
 if TYPE_CHECKING:
@@ -32,8 +32,9 @@ class ZmqCommunicator:
         self.receiver = self.context.socket(zmq.ROUTER)
         self.receiver.bind(self.address.to_url())
 
-        self.peers: Dict[str, PeerInfo] = {}  # node_id -> PeerInfo
-        self.offline_peers: Dict[str, float] = {}  # node_id -> offline_time
+        self.peers = AsyncSafeDict()  # node_id -> PeerInfo
+        self.offline_peers = AsyncSafeDict()  # node_id -> offline_time
+
 
     def stop(self):
         """Stop the communicator."""
@@ -52,9 +53,9 @@ class ZmqCommunicator:
                 if now - peer_info.last_seen > PEER_OFFLINE_TIMEOUT:
                     continue
 
-                existing = self.peers.get(peer_info.node_id)
+                existing = await self.peers.get(peer_info.node_id)
                 if existing is None:
-                    self.peers[peer_info.node_id] = peer_info
+                    await self.peers.set(peer_info.node_id, peer_info)
                 else:
                     # Update address if changed.
                     if existing.address != peer_info.address:
@@ -63,10 +64,8 @@ class ZmqCommunicator:
                     else:
                         existing.last_seen = max(existing.last_seen, peer_info.last_seen)
 
-                if peer_info.node_id in self.offline_peers:
-                    del self.offline_peers[peer_info.node_id]
-
-        # print(f"[{self.node.node_id}  ] Current peers: {list(self.peers.keys())}, offline: {self.offline_peers}")
+                if await self.offline_peers.get(peer_info.node_id):
+                    await self.offline_peers.pop(peer_info.node_id, None)
 
 
     async def _join_network(self, peer_url: str):
@@ -93,29 +92,27 @@ class ZmqCommunicator:
 
     async def _send_request(self, comm_request: CommRequest) -> Union[Dict, None]:
         """Send a communication request."""
-        socket = None
-
-        # Network latency simulation
-        # await asyncio.sleep(np.random.exponential(0.05))
-
         try:
             target_url = comm_request.receiver.to_url()
 
-            socket = self.context.socket(zmq.DEALER)
-            socket.setsockopt(zmq.LINGER, 0)
+            sock = self.context.socket(zmq.DEALER)
+            sock.setsockopt(zmq.LINGER, 0)
 
-            identity = str(self.node.node_id).encode()
-            socket.setsockopt(zmq.IDENTITY, identity)
+            identity = f"{self.node.node_id}-{uuid.uuid4()}".encode()
+            sock.setsockopt(zmq.IDENTITY, identity)
+            sock.connect(target_url)
 
-            socket.connect(target_url)
-            await socket.send_multipart([b'', comm_request.model_dump_json().encode()])
+            await sock.send_multipart([
+                b'',
+                comm_request.model_dump_json().encode()
+            ])
 
             poller = zmq.asyncio.Poller()
-            poller.register(socket, zmq.POLLIN)
+            poller.register(sock, zmq.POLLIN)
             socks = await poller.poll(timeout=COMM_RESPONSE_TIMEOUT)
 
-            if socks and any(event == zmq.POLLIN and sock == socket for sock, event in socks):
-                parts = await socket.recv_multipart()
+            if socks:
+                parts = await sock.recv_multipart()
                 if len(parts) == 2:
                     _, raw_reply = parts
                     return json.loads(raw_reply.decode())
@@ -126,18 +123,13 @@ class ZmqCommunicator:
             return None
 
         finally:
-            if socket is not None:
-                try:
-                    socket.close()
-                except Exception as e:
-                    print(f"[{self.node.node_id}  ] Error closing socket: {e}")
+            sock.close(linger=0)
 
 
     async def prepare_and_send_request(self, payload, type: str, target_id: str = None, target_url: str = None) -> Union[CommRequest, None]:
         """Prepare and send a request to a target node or address."""
         if target_id:
-            async with self.zmq_lock:
-                target_peerinfo = self.peers.get(target_id, None)
+            target_peerinfo = await self.peers.get(target_id, None)
             if target_peerinfo is None:
                 return None
             target_address = target_peerinfo.address
@@ -191,7 +183,7 @@ class ZmqCommunicator:
 
     async def gossip_probe(self):
         """Gossip with peers to check their availability and synchronize."""
-        known_peers = list(self.peers.values())
+        known_peers = await self.peers.values()
         known_peers.append(PeerInfo(
             node_id=self.node.node_id,
             address=self.address,
@@ -201,7 +193,7 @@ class ZmqCommunicator:
 
         offline_nodes = []
         # TODO: For now, we gossip with all peers.
-        for node_id, peer_info in list(self.peers.items()):
+        for node_id, peer_info in await self.peers.items():
             if now - peer_info.last_seen > PEER_OFFLINE_TIMEOUT:
                 offline_nodes.append(node_id)
                 continue
@@ -227,14 +219,14 @@ class ZmqCommunicator:
 
 
         for node_id in offline_nodes:
-            del self.peers[node_id]
-            if node_id not in self.offline_peers:
-                self.offline_peers[node_id] = now
+            await self.peers.pop(node_id, None)
+            if not await self.offline_peers.get(node_id):
+                await self.offline_peers.set(node_id, now)
 
-        for node_id, offline_time in list(self.offline_peers.items()):
+        for node_id, offline_time in await self.offline_peers.items():
             if now - offline_time > PEER_OFFLINE_TIMEOUT:
                 print(f"[{self.node.node_id}  ] Node {node_id} is really offline, handling concerning requests.")
-                del self.offline_peers[node_id]
+                await self.offline_peers.pop(node_id, None)
                 await self.node.handle_node_offline(node_id)
 
 
@@ -243,6 +235,7 @@ class ZmqCommunicator:
         if len(parts) != 3:
             print(f"[{self.node.node_id}  ] Invalid message received: {parts}")
             return
+
         identity, _, raw_msg = parts
         recv_request = CommRequest.model_validate(json.loads(raw_msg.decode()))
 
@@ -253,11 +246,11 @@ class ZmqCommunicator:
             req_type = recv_request.payload.type
 
             if req_type == "sync":
-                self.node.create_task(
+                await self.node.create_task(
                     self._sync_peers(recv_request.payload.known_peers)
                 )
 
-                known_peers = list(self.peers.values())
+                known_peers = await self.peers.values()
                 known_peers.append(PeerInfo(
                     node_id=self.node.node_id,
                     address=self.address,
@@ -312,7 +305,7 @@ class ZmqCommunicator:
                 reply_request.model_dump_json().encode()
             ])
 
-            self.node.create_task(self.node.handle_received_model_request(recv_request.payload, sender.to_url()))
+            await self.node.create_task(self.node.handle_received_model_request(recv_request.payload, sender.to_url()))
 
         else:
             print(f"[{self.node.node_id}  ] Unknown communication type: {recv_type}")

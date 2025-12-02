@@ -1,7 +1,48 @@
 from uuid import uuid4
 import time
-from typing import List, Tuple, Dict, Literal, Optional, Union, Annotated
+from typing import Any, List, Tuple, Dict, Literal, Optional, Union, Annotated, Iterable
 from pydantic import BaseModel, Field, ConfigDict
+import asyncio
+
+
+class AsyncSafeDict:
+    def __init__(self):
+        self._dict = {}
+        self._lock = asyncio.Lock()
+
+    async def get(self, key: str, default: Any = None) -> Any:
+        async with self._lock:
+            return self._dict.get(key, default)
+
+    async def set(self, key: str, value: Any) -> None:
+        async with self._lock:
+            self._dict[key] = value
+
+    async def pop(self, key: str, default: Any = None) -> Any:
+        async with self._lock:
+            return self._dict.pop(key, default)
+
+    async def items(self) -> Iterable[Tuple[str, Any]]:
+        async with self._lock:
+            return list(self._dict.items())
+
+    async def values(self) -> Iterable[Any]:
+        async with self._lock:
+            return list(self._dict.values())
+
+    async def add_to_set(self, key: str, value: Any) -> None:
+        async with self._lock:
+            self._dict.setdefault(key, set()).add(value)
+    
+    async def discard_from_set(self, key: str, value: Any) -> None:
+        async with self._lock:
+            s = self._dict.get(key)
+            if not s:
+                return
+            s.discard(value)
+            if not s:
+                self._dict.pop(key, None)
+
 
 
 class CreditAccount(BaseModel):
@@ -61,7 +102,6 @@ class ModelRequest(BaseModel):
     model_result: Optional[Dict] = None
 
     is_duel_req: bool = False
-    is_judge_task: bool = False
 
     # Allow arbitrary types in the Pydantic model
     model_config = ConfigDict(arbitrary_types_allowed=True)

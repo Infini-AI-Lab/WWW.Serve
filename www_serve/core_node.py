@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Set, Tuple, TYPE_CHECKING
+from typing import Union, List, Set, TYPE_CHECKING
 from pathlib import Path
 import asyncio
 import yaml
@@ -6,7 +6,7 @@ import time
 import random
 from uuid import uuid4
 
-from .entities import ModelRequest
+from .entities import ModelRequest, AsyncSafeDict
 from .model_manager import ModelManager
 from .zmq_comm import ZmqCommunicator
 from .request_manager import RequestManager
@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 300       # Default timeout for user requests (s)
 DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
-P_INSPECT = 0.1
+DEFAULT_CREDIT_REWARD = 1
+P_INSPECT = 0.2
 K_JUDGES = 2
 
 
@@ -40,19 +41,19 @@ class LLMNode:
         self.queue_frequency = self.config["server_params"]["queue_frequency"]
         self.accept_frequency = self.config["server_params"]["accept_frequency"]
 
-        self.pending_futures: Dict[str, Tuple[asyncio.Future, asyncio.Task]] = {}  # request_id -> (future, timer)
+        self.pending_futures = AsyncSafeDict()  # request_id -> (future, timer)
 
-        self.lock = asyncio.Lock()
-        self.delegate_from: Dict[str, str] = {}  # request_id -> delegate_from_url
-        self.send_to: Dict[str, Tuple[str, ModelRequest, str]] = {}  # request_id -> (send_to_node_id, ModelRequest, source)
-        self.dispatching_requests: Dict[str, Set[str]] = {}  # node_id -> Set of request_id
+        self.delegate_from = AsyncSafeDict()  # request_id -> delegate_from_url
+        self.send_to = AsyncSafeDict()  # request_id -> (send_to_node_id, ModelRequest, source)
+        self.dispatching_requests = AsyncSafeDict()  # node_id -> Set of request_id
 
-        self.duel_settle_locks: Dict[str, asyncio.Lock] = {}
+        self.duel_settle_locks = AsyncSafeDict()  # duel_id -> asyncio.Lock()
         self.judge_length = int(self.config["models"][0]["gen_params"]["max_tokens"]*1.2)
-        self.duel_states: Dict[str, dict] = {}
-        self.duel_dict: Dict[str, (str, str)] = {} # Maps request IDs to duel IDs and roles
-        self.judge_dict: Dict[str, str] = {}  # Maps judge_req_ids to duel IDs
+        self.duel_states = AsyncSafeDict()
+        self.duel_dict = AsyncSafeDict()  # request_id -> (duel_id, role)
+        self.judge_dict = AsyncSafeDict()  # judge_req_id -> duel_id
 
+        self._tasks_lock = asyncio.Lock()
         self._tasks: Set[asyncio.Task] = set()
 
         self.communicator = ZmqCommunicator(
@@ -82,19 +83,20 @@ class LLMNode:
         return node
 
 
-    def create_task(self, coro) -> asyncio.Task:
+    async def create_task(self, coro) -> asyncio.Task:
         """Create and schedule a new task."""
         task = asyncio.create_task(coro)
-        self._tasks.add(task)
+        async with self._tasks_lock:
+            self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return task
 
 
     async def start(self):
         """Start the node and its main loops."""
-        self.create_task(self._listen_loop())
-        self.create_task(self._dispatch_loop())
-        self.create_task(self._gossip_metric_loop())
+        await self.create_task(self._listen_loop())
+        await self.create_task(self._dispatch_loop())
+        await self.create_task(self._gossip_metric_loop())
 
 
     async def stop(self):
@@ -122,9 +124,9 @@ class LLMNode:
             route_path=[(self.node_id, time.time())]
         ).assign_id()
 
-        timer = self.create_task(self._start_timeout_timer(request, timeout=DEFAULT_REQUEST_TIMEOUT))
+        timer = await self.create_task(self._start_timeout_timer(request, timeout=DEFAULT_REQUEST_TIMEOUT))
         future = asyncio.get_running_loop().create_future()
-        self.pending_futures[request.model_request_id] = (future, timer)
+        await self.pending_futures.set(request.model_request_id, (future, timer))
 
         await self.request_manager.enque_request(request, queue="user")
 
@@ -132,17 +134,21 @@ class LLMNode:
         return await future
 
 
-    def resolve_future_timer(self, request: "ModelRequest"):
+    async def resolve_future_timer(self, request: "ModelRequest"):
         """Resolve the future and timer for a request."""
         request_id = request.model_request_id
 
-        future, timer = self.pending_futures.pop(request_id, (None, None))
+        future, timer = await self.pending_futures.pop(request_id, (None, None))
+
         if timer and timer is not asyncio.current_task():
             timer.cancel()
 
         if future and not future.done():
             future.set_result({
-                "response": request.model_result
+                "response": request.model_result,
+                "extra": {
+                    "route_path": [nid for (nid, _) in request.route_path],
+                }
             })
         else:
             print(f"[{self.node_id}  ] Future for request {request_id} not found.")
@@ -168,7 +174,7 @@ class LLMNode:
             },
             executor_node_id=self.node_id
         )
-        self.resolve_future_timer(request)
+        await self.resolve_future_timer(request)
         print(f"[{self.node_id}  ] Request {request.model_request_id} timed out after {timeout} seconds.")
 
 
@@ -190,9 +196,9 @@ class LLMNode:
     
 
     async def _settle_duel(self, duel_id: str):
-        self.duel_settle_locks.pop(duel_id, None)
-        st = self.duel_states.pop(duel_id, None)
-        
+        _ = await self.duel_settle_locks.pop(duel_id, None)
+        st = await self.duel_states.pop(duel_id, None)
+
         if not st:
             return
 
@@ -202,13 +208,10 @@ class LLMNode:
         a_votes = sum(1 for (_, v) in st["votes"] if v == "A")
         b_votes = sum(1 for (_, v) in st["votes"] if v == "B")
 
-        print(f"[{self.node_id}  ] Duel {duel_id} votes: A={a_votes}, B={b_votes}")
-
         if a_votes == b_votes:
             winner, loser = None, None
             participants = [nid for (nid, v) in st["votes"] if v == "A" or v == "B"]
             non_participants = [nid for (nid, v) in st["votes"] if v == None]
-            print(f"[{self.node_id}  ] Duel {duel_id} is tied. Participants: {participants}, Non-participants: {non_participants}")
             await self.credit_ledger.judge_transfer_tied(participants=participants, non_participants=non_participants)
 
         else:
@@ -217,7 +220,6 @@ class LLMNode:
             majority = [nid for (nid, v) in st["votes"] if v == correct]
             minority = [nid for (nid, v) in st["votes"] if v != correct and v is not None]
             non_participants = [nid for (nid, v) in st["votes"] if v is None]
-            print(f"[{self.node_id}  ] Duel {duel_id} . majority: {majority}, minority: {minority}, non-participants: {non_participants}")
             await self.credit_ledger.judge_transfer(majority=majority, minority=minority, non_participants=non_participants)
 
         if self.credit_ledger and winner and loser:
@@ -228,20 +230,20 @@ class LLMNode:
 
     async def handle_node_offline(self, node_id: str):
         """Handle the corresponding requests for an offline node."""
-        if self.dispatching_requests.get(node_id) is None:
+        dispatch_list = list(await self.dispatching_requests.get(node_id))
+        if dispatch_list is None:
             return
 
-        for request_id in list(self.dispatching_requests[node_id]):
+        for request_id in dispatch_list:
             print(f"[{self.node_id}  ] Request {request_id} requeuing.")
-            async with self.lock:
-                send_to, request, source = self.send_to.pop(request_id, (None, None, None))
+            send_to, request, source = await self.send_to.pop(request_id, (None, None, None))
 
             if send_to:
                 await self.request_manager.enque_front_request(request, queue=source)
             else:
                 print(f"[{self.node_id}  ] No send_to info for request {request_id} when node {node_id} goes offline.")
 
-        self.dispatching_requests.pop(node_id, None)
+        await self.dispatching_requests.pop(node_id, None)
 
 
     def extract_vote(self, content: str) -> str:
@@ -285,21 +287,25 @@ class LLMNode:
 
 
     async def _launch_pairwise_vote(self, duel_id: str):
-        st = self.duel_states[duel_id]
+        st = await self.duel_states.get(duel_id)
         content_A = st["A"].model_result.get("content")
         content_B = st["B"].model_result.get("content")
         user_input = st["A"].user_input
 
         # TODO: Exclude nodes that are involved in the duel?
         # exclude_nodes = [st["A"].executor_node_id, st["B"].executor_node_id, self.node_id]
-        exclude_nodes = []
-        judges_list = await self._select_k_nodes(exclude_nodes=exclude_nodes, k=K_JUDGES)
-        # TODO: Fallback to other methods to select judges
+        judges_list = await self._select_k_nodes(exclude_nodes=[], k=K_JUDGES)
+
         if not judges_list or len(judges_list) < K_JUDGES:
             print(f"[{self.node_id}  ] Failed to select judges for duel {duel_id}.")
+            # TODO: handle this case
+            _ = await self.duel_settle_locks.pop(duel_id, None)
+            st = await self.duel_states.pop(duel_id, None)
             return
 
-        st["judges"] = judges_list
+        lock = await self.duel_settle_locks.get(duel_id)
+        async with lock:
+            st["judges"] = judges_list
 
         print(f"[{self.node_id}  ] Duel {duel_id} ready for judging by nodes {judges_list}")
 
@@ -308,16 +314,13 @@ class LLMNode:
                 source_node_addr=self.communicator.address,
                 type="request",
                 route_path=[(self.node_id, time.time())],
-                is_judge_task=True,
                 user_input=self._build_judge_payload(user_input, content_A, content_B, max_length_percontent=self.judge_length)
             ).assign_id()
 
-            self.judge_dict.setdefault(jr.model_request_id, duel_id)
+            await self.judge_dict.set(jr.model_request_id, duel_id)
 
-            async with self.lock:
-                # TODO: Source = node?
-                self.send_to[jr.model_request_id] = (jnid, jr.model_copy(deep=True), "node")
-                self.dispatching_requests.setdefault(jnid, set()).add(jr.model_request_id)
+            await self.send_to.set(jr.model_request_id, (jnid, jr.model_copy(deep=True), "node"))
+            await self.dispatching_requests.add_to_set(jnid, jr.model_request_id)
             _ = await self.communicator.prepare_and_send_request(payload=jr, type="ModelRequest", target_id=jnid)
 
 
@@ -328,7 +331,10 @@ class LLMNode:
         reqB = req.copy_request_for_duel()
 
         nodeA = selected_node_id
-        another_node_list = await self._select_k_nodes(exclude_nodes=[nodeA] + [node_id for node_id, _ in req.route_path], k=1)
+        another_node_list = await self._select_k_nodes(
+            exclude_nodes=[nodeA] + [node_id for node_id, _ in req.route_path],
+            k=1
+        )
         if another_node_list:
             nodeB = another_node_list[0]
         else:
@@ -336,10 +342,10 @@ class LLMNode:
             await self.request_manager.enque_front_request(req, queue=source)
             return
 
-        self.duel_dict.setdefault(reqA.model_request_id, (duel_id, "A"))
-        self.duel_dict.setdefault(reqB.model_request_id, (duel_id, "B"))
+        await self.duel_dict.set(reqA.model_request_id, (duel_id, "A"))
+        await self.duel_dict.set(reqB.model_request_id, (duel_id, "B"))
 
-        self.duel_states.setdefault(duel_id, {
+        await self.duel_states.set(duel_id, {
             "orig_req_id": req.model_request_id,
             "A": None,
             "B": None,
@@ -348,18 +354,16 @@ class LLMNode:
             "source": source,
             "start_ts": time.time()
         })
-        self.duel_settle_locks.setdefault(duel_id, asyncio.Lock())
+        await self.duel_settle_locks.set(duel_id, asyncio.Lock())
 
         print(f"[{self.node_id}  ] Dispatching duel {duel_id}: (A) to {nodeA} and (B) to {nodeB}")
 
-        async with self.lock:
-            self.send_to[reqA.model_request_id] = (nodeA, reqA.model_copy(deep=True), source)
-            self.dispatching_requests.setdefault(nodeA, set()).add(reqA.model_request_id)
+        await self.send_to.set(reqA.model_request_id, (nodeA, reqA.model_copy(deep=True), source))
+        await self.dispatching_requests.add_to_set(nodeA, reqA.model_request_id)
         _ = await self.communicator.prepare_and_send_request(payload=reqA, type="ModelRequest", target_id=nodeA)
 
-        async with self.lock:
-            self.send_to[reqB.model_request_id] = (nodeB, reqB.model_copy(deep=True), source)
-            self.dispatching_requests.setdefault(nodeB, set()).add(reqB.model_request_id)
+        await self.send_to.set(reqB.model_request_id, (nodeB, reqB.model_copy(deep=True), source))
+        await self.dispatching_requests.add_to_set(nodeB, reqB.model_request_id)
         _ = await self.communicator.prepare_and_send_request(payload=reqB, type="ModelRequest", target_id=nodeB)
 
 
@@ -368,8 +372,7 @@ class LLMNode:
         msg_type = request.type
 
         if msg_type == "request":
-            async with self.lock:
-                self.delegate_from[request.model_request_id] = received_from_url
+            await self.delegate_from.set(request.model_request_id, received_from_url)
 
             # Maintain the route path, TODO: Only record recent hops?
             request.route_path.append((self.node_id, time.time()))
@@ -381,33 +384,36 @@ class LLMNode:
 
 
     async def _handle_duel_response(self, request: "ModelRequest"):
-        duel_id, role = self.duel_dict.pop(request.model_request_id, (None, None))
-        st = self.duel_states.get(duel_id)
+        duel_id, role = await self.duel_dict.pop(request.model_request_id, (None, None))
+        st = await self.duel_states.get(duel_id)
 
         # Return the first duel response to user.
         if not st["A"] and not st["B"]:
-            print(f"[{self.node_id}  ] Duel {duel_id} first response received from {request.executor_node_id} for role {role}.")
             orig_req_id = st["orig_req_id"]
             final_req = request.model_copy(deep=True)
             final_req.model_request_id = orig_req_id
-            self.resolve_future_timer(final_req)
+            await self.resolve_future_timer(final_req)
 
-        st[role] = request
+        lock = await self.duel_settle_locks.get(duel_id)
+        async with lock:
+            st[role] = request
+
         if st["A"] and st["B"]:
-            print(f"[{self.node_id}  ] Duel {duel_id} both responses received. Launching judging.")
             await self._launch_pairwise_vote(duel_id)
 
 
     async def _handle_judge_response(self, request: "ModelRequest"):
-        duel_id = self.judge_dict.pop(request.model_request_id, None)
+        duel_id = await self.judge_dict.pop(request.model_request_id, None)
 
-        if not duel_id or duel_id not in self.duel_states:
+        if not duel_id or not await self.duel_states.get(duel_id):
             print(f"[{self.node_id}  ] Duel state lost for {duel_id}")
             return
 
         vote = self.extract_vote(request.model_result.get("content", ""))
-        async with self.duel_settle_locks[duel_id]:
-            st = self.duel_states[duel_id]
+
+        st = await self.duel_states.get(duel_id)
+        lock = await self.duel_settle_locks.get(duel_id)
+        async with lock:
             st["votes"].append((request.executor_node_id, vote))
             st_length = len(st["votes"])
 
@@ -415,52 +421,48 @@ class LLMNode:
             await self._settle_duel(duel_id)
 
 
-
     async def handle_response_request(self, request: "ModelRequest", received_from_url: str = None):
         """Handle the inference response from a model server."""
         if received_from_url:
-            async with self.lock:
-                send_to, _, _ = self.send_to.pop(request.model_request_id, (None, None, None))
+            send_to, _, _ = await self.send_to.pop(request.model_request_id, (None, None, None))
 
             if send_to:
-                send_to_info = self.communicator.peers.get(send_to, None)
+                send_to_info = await self.communicator.peers.get(send_to, None)
                 expect_url = send_to_info.address.to_url() if send_to_info else None
                 if received_from_url == expect_url:
-                    async with self.lock:
-                        self.dispatching_requests[send_to].discard(request.model_request_id)
+                    await self.dispatching_requests.discard_from_set(send_to, request.model_request_id)
                 else:
                     print(f"[{self.node_id}  ] Response from {received_from_url} for request {request.model_request_id} does not match expected {expect_url}.")
             else:
                 print(f"[{self.node_id}  ] No send_to info for request {request.model_request_id} on response from {received_from_url}.")
 
         # Duel request
-        if request.model_request_id in self.duel_dict:
-            if self.credit_ledger:
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+        if await self.duel_dict.get(request.model_request_id):
+            if self.credit_ledger and request.executor_node_id != self.node_id:
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=DEFAULT_CREDIT_REWARD)
 
             await self._handle_duel_response(request)
             return
 
         # Judge request
-        elif request.model_request_id in self.judge_dict:
-            if self.credit_ledger:
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+        if await self.judge_dict.get(request.model_request_id):
+            if self.credit_ledger and request.executor_node_id != self.node_id:
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=DEFAULT_CREDIT_REWARD)
 
             await self._handle_judge_response(request)
             return
 
         # Normal request
-        async with self.lock:
-            last_hop = self.delegate_from.pop(request.model_request_id, None)
+        last_hop = await self.delegate_from.pop(request.model_request_id, None)
 
         if last_hop:
             _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_url=last_hop)
 
         else:
             if self.credit_ledger and request.executor_node_id != self.node_id:
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=1)
+                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=DEFAULT_CREDIT_REWARD)
 
-            self.resolve_future_timer(request)
+            await self.resolve_future_timer(request)
 
 
     def select_local_idle_model(self):
@@ -586,18 +588,17 @@ class LLMNode:
 
                 if selected_node_id == self.node_id:
                     print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
-                    self.create_task(self.models.inference_request(selected_model, request))
+                    await self.create_task(self.models.inference_request(selected_model, request))
 
                 else:
+                    # Duel-and-Judge Mechanism
                     if (not request.is_duel_req) and random.random() <= P_INSPECT:
                         await self._dispatch_duel(request, selected_node_id, source)
 
                     else:
                         print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
-                        # Use deepcopy! Sending function will modify the request
-                        async with self.lock:
-                            self.send_to[request.model_request_id] = (selected_node_id, request.model_copy(deep=True), source)
-                            self.dispatching_requests.setdefault(selected_node_id, set()).add(request.model_request_id)
+                        await self.send_to.set(request.model_request_id, (selected_node_id, request.model_copy(deep=True), source))
+                        await self.dispatching_requests.add_to_set(selected_node_id, request.model_request_id)
 
                         _ = await self.communicator.prepare_and_send_request(payload=request, type="ModelRequest", target_id=selected_node_id)
 

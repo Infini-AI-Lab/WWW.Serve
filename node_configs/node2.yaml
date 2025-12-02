@@ -7,16 +7,16 @@ server_params:
   accept_frequency: 0.8
 
 ledger_params:
-  initial_credit: 1000.0
+  initial_credit: 10000.0
   initial_staked: 0.0
 
 models:
-  - model_path: Qwen/Qwen3-4B
-    base_url: http://192.168.102.11:30001
+  - model_path: meta-llama/Llama-3.1-8B
+    base_url: http://192.168.102.18:30001
     api_key: None
 
     gen_params:
-      max_tokens: 8192
+      max_tokens: 16
       temperature: 0.0
       top_p: 0.95
 

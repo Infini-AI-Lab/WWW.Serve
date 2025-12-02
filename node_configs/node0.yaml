@@ -7,7 +7,7 @@ server_params:
   accept_frequency: 0.0
 
 ledger_params:
-  initial_credit: 1000.0
+  initial_credit: 10000.0
   initial_staked: 0.0
 
 models:

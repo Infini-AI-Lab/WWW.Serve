@@ -40,6 +40,23 @@ async def node_start_join(node: LLMNode, url: str, delay=0):
     await node.join_network(url)
 
 
+async def check_final_stats(node: LLMNode):
+    print(f"Printing {node.node_id}")
+    print(f"Credit Account: ", await node.credit_ledger.get_account_credit(node.node_id))
+    print("pending_futures: ", await node.pending_futures.items())
+    print("delegate_from: ", await node.delegate_from.items())
+    print("send_to: ", await node.send_to.items())
+    print("dispatching_requests: ", await node.dispatching_requests.items())
+    print("duel_settle_locks: ", await node.duel_settle_locks.items())
+    print("duel_states: ", await node.duel_states.items())
+    print("duel_dict: ", await node.duel_dict.items())
+    print("judge_dict: ", await node.judge_dict.items())
+    print("Number of tasks: ", len(node._tasks))
+    if len(node._tasks) != 3:
+        print("Tasks: ", node._tasks)
+
+
+
 async def main():
 
     ##### Initialize nodes and credit ledger #####
@@ -48,7 +65,6 @@ async def main():
     result_folder = RESULT_PATH / f"decentralized_simulation"
     os.makedirs(result_folder, exist_ok=True)
     ledger = CreditLedger(duel_record_pth=result_folder / "duel_record.csv")
-
 
     CONFIG_PATH = Path(__file__).parent.parent.parent / "node_configs"
 
@@ -115,7 +131,6 @@ async def main():
 
     all_results = await asyncio.gather(*tasks)
 
-
     # TODO: For now, wait until all duel requests are done
     current_time = time.time()
     while time.time() - current_time < 300:
@@ -156,14 +171,9 @@ async def main():
             )
 
     for node in nodes.values():
-        print(f"Printing {node.node_id}")
-        print("pending_futures: ", node.pending_futures)
-        print("delegate_from: ", node.delegate_from)
-        print("send_to: ", node.send_to)
-        print("dispatching_requests: ", node.dispatching_requests)
-        print("Number of tasks: ", len(node._tasks))
-        if len(node._tasks) != 3:
-            print("Tasks: ", node._tasks)
+        await check_final_stats(node)
+
+
 
 
 if __name__ == "__main__":
