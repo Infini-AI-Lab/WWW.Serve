@@ -74,7 +74,8 @@ class ModelManager:
                     "content": request.user_input
                 }],
                 extra_body={
-                    "chat_template_kwargs": {"enable_thinking": enable_thinking},
+                    # "chat_template_kwargs": {"enable_thinking": enable_thinking},
+                    "chat_template_kwargs": {"enable_thinking": False},
                 },
                 temperature = gen_params.get("temperature", 0.6),
                 top_p = gen_params.get("top_p", 0.95),

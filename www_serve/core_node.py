@@ -18,11 +18,11 @@ if TYPE_CHECKING:
 
 
 GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
-DEFAULT_REQUEST_TIMEOUT = 300       # Default timeout for user requests (s)
+DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
 DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
 DEFAULT_CREDIT_REWARD = 1
-P_INSPECT = 0.2
-K_JUDGES = 2
+P_INSPECT = 1.0
+K_JUDGES = 3
 
 
 class LLMNode:
@@ -97,6 +97,7 @@ class LLMNode:
         await self.create_task(self._listen_loop())
         await self.create_task(self._dispatch_loop())
         await self.create_task(self._gossip_metric_loop())
+        await self.create_task(self._stake_loop())
 
 
     async def stop(self):
@@ -307,8 +308,7 @@ class LLMNode:
         async with lock:
             st["judges"] = judges_list
 
-        print(f"[{self.node_id}  ] Duel {duel_id} ready for judging by nodes {judges_list}")
-
+        # print(f"[{self.node_id}  ] Duel {duel_id} ready for judging by nodes {judges_list}")
         for jnid in st["judges"]:
             jr = ModelRequest(
                 source_node_addr=self.communicator.address,
@@ -356,7 +356,7 @@ class LLMNode:
         })
         await self.duel_settle_locks.set(duel_id, asyncio.Lock())
 
-        print(f"[{self.node_id}  ] Dispatching duel {duel_id}: (A) to {nodeA} and (B) to {nodeB}")
+        # print(f"[{self.node_id}  ] Dispatching duel {duel_id}: (A) to {nodeA} and (B) to {nodeB}")
 
         await self.send_to.set(reqA.model_request_id, (nodeA, reqA.model_copy(deep=True), source))
         await self.dispatching_requests.add_to_set(nodeA, reqA.model_request_id)
@@ -497,10 +497,15 @@ class LLMNode:
         load = self._aggregate_load()
         avg_usage = load["avg_token_usage"]
         avg_target_usage = load["avg_target_usage"]
+        total_queue = load["total_queue"]
 
-        if avg_usage <= avg_target_usage * 0.5:
+        if total_queue > 0:
+            load_score = 0
+        elif avg_usage <= avg_target_usage * 0.25:
+            load_score = 4
+        elif avg_usage <= avg_target_usage * 0.5:
             load_score = 3
-        elif avg_usage <= avg_target_usage * 0.8:
+        elif avg_usage <= avg_target_usage * 0.75:
             load_score = 2
         elif avg_usage <= avg_target_usage:
             load_score = 1
@@ -512,25 +517,26 @@ class LLMNode:
         total_queue_len = user_queue_len + node_queue_len
 
         if total_queue_len == 0:
-            queue_score = 1
-        else:
             queue_score = 0
+        else:
+            queue_score = -2
 
         cur_stake = await self.credit_ledger.get_stake(self.node_id)
         cur_credit = await self.credit_ledger.get_account_credit(self.node_id)
         target_stake = load_score + queue_score  # [0, 4]
+        target_stake = max(0, target_stake)
         delta = target_stake - cur_stake
 
         if delta > 0:
-            amount = min(delta, cur_credit, 2)
+            amount = min(delta, cur_credit, 1)
             if amount > 0:
                 _ = await self.credit_ledger.stake(self.node_id, amount)
-                print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
-        else:
-            amount = min(-delta, cur_stake, 2)
+                # print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
+        # else:
+            amount = min(-delta, cur_stake, 1)
             if amount > 0:
                 _ = await self.credit_ledger.unstake(self.node_id, amount)
-                print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
+                # print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
 
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
@@ -565,11 +571,22 @@ class LLMNode:
             try:
                 await self.communicator.gossip_probe()
                 await self.models.update_server_stats()
-                await self._auto_adjust_stake()
+                # await self._auto_adjust_stake()
                 await asyncio.sleep(GOSSIP_METRIC_INTERVAL)
 
             except Exception as e:
                 print(f"[{self.node_id}  ] Error in gossip/metric loop: {e}")
+                await asyncio.sleep(1)
+
+
+    async def _stake_loop(self):
+        while True:
+            try:
+                await self._auto_adjust_stake()
+                await asyncio.sleep(1)
+
+            except Exception as e:
+                print(f"[{self.node_id}  ] Error in stake loop: {e}")
                 await asyncio.sleep(1)
 
 
@@ -587,7 +604,7 @@ class LLMNode:
                     continue
 
                 if selected_node_id == self.node_id:
-                    print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
+                    # print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
                     await self.create_task(self.models.inference_request(selected_model, request))
 
                 else:
@@ -596,7 +613,7 @@ class LLMNode:
                         await self._dispatch_duel(request, selected_node_id, source)
 
                     else:
-                        print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
+                        # print(f"[{self.node_id}  ] Sending request {request.model_request_id} from {self.node_id} to {selected_node_id}")
                         await self.send_to.set(request.model_request_id, (selected_node_id, request.model_copy(deep=True), source))
                         await self.dispatching_requests.add_to_set(selected_node_id, request.model_request_id)
 

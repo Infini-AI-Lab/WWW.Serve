@@ -1,4 +1,3 @@
-from .entities import CreditAccount
 from typing import Dict, List, Set
 import random
 import time
@@ -8,6 +7,7 @@ import os
 import csv
 import asyncio
 
+from .entities import CreditAccount
 
 
 class CreditLedger:
@@ -35,7 +35,7 @@ class CreditLedger:
         async with self.stakes_lock.writer_lock:
             self.stakes[node_id] = self.accounts[node_id].staked
         return True
-    
+
 
     async def delete_account(self, node_id: str):
         async with self.accounts_lock.writer_lock:
@@ -102,6 +102,14 @@ class CreditLedger:
         async with self.accounts_lock.writer_lock:
             from_account.credit -= amount
             to_account.credit += amount
+
+        await self._log_duel_action(
+            "reward",
+            {from_id: amount},
+            {to_id: amount},
+            # details=f"{from_id} -> {to_id}, amount={amount}"
+        )
+
         return True
 
 
@@ -123,9 +131,8 @@ class CreditLedger:
             return []
 
         node_ids, weights = zip(*pairs)
-        rng = random.Random(time.time())
         # Efraimidis–Spirakis
-        scored = [(-math.log(rng.random()) / w, nid) for nid, w in zip(node_ids, weights)]
+        scored = [(-math.log(random.random()) / w, nid) for nid, w in zip(node_ids, weights)]
         scored.sort(key=lambda x: x[0])
         k = min(k, len(scored))
 
@@ -134,12 +141,7 @@ class CreditLedger:
 
     async def transfer_nothing(self, from_id: str, to_id: str) -> bool:
         """Transfer nothing from one account to another."""
-        decrease_map, increase_map = {}, {}
-        for node_id in [from_id, to_id]:
-            decrease_map[node_id] = 0
-            increase_map[node_id] = 0
-        await self._log_duel_action("transfer_nothing", decrease_map, increase_map)
-        return True
+        pass
 
 
     async def transfer_all_stake(self, from_id: str, to_id: str) -> bool:
@@ -161,7 +163,7 @@ class CreditLedger:
             "transfer_all_stake",
             decrease_map,
             increase_map,
-            details=f"{from_id} → {to_id}"
+            # details=f"{from_id} -> {to_id}, amount={from_stake}"
         )
         return True
 
