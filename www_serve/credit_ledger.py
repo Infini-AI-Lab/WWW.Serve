@@ -113,6 +113,25 @@ class CreditLedger:
         return True
 
 
+    async def reward_judge(self, from_id: str, to_id: str, amount: float) -> bool:
+        async with self.accounts_lock.reader_lock:
+            from_account = self.accounts.get(from_id)
+            to_account = self.accounts.get(to_id)
+            if not from_account or not to_account or from_account.credit < amount:
+                return False
+        async with self.accounts_lock.writer_lock:
+            from_account.credit -= amount
+            to_account.credit += amount
+
+        await self._log_duel_action(
+            "reward_judge",
+            {from_id: amount},
+            {to_id: amount},
+        )
+
+        return True
+
+
     async def select_node_by_pos(
         self,
         exclude_nodes: Set[str],
@@ -144,7 +163,7 @@ class CreditLedger:
         pass
 
 
-    async def transfer_all_stake(self, from_id: str, to_id: str) -> bool:
+    async def transfer_stake(self, from_id: str, to_id: str, gamma: float = 1.0) -> bool:
         decrease_map, increase_map = {}, {}
 
         async with self.accounts_lock.writer_lock, self.stakes_lock.writer_lock:
@@ -152,18 +171,19 @@ class CreditLedger:
             if from_stake == 0:
                 return False
 
-            self.stakes[from_id] -= from_stake
-            self.accounts[from_id].staked -= from_stake
-            decrease_map[from_id] = from_stake
+            transfer_amount = gamma * from_stake
 
-            self.accounts[to_id].credit += from_stake
-            increase_map[to_id] = from_stake
+            self.stakes[from_id] -= transfer_amount
+            self.accounts[from_id].staked -= transfer_amount
+            decrease_map[from_id] = transfer_amount
+
+            self.accounts[to_id].credit += transfer_amount
+            increase_map[to_id] = transfer_amount
 
         await self._log_duel_action(
-            "transfer_all_stake",
+            "transfer_stake",
             decrease_map,
             increase_map,
-            # details=f"{from_id} -> {to_id}, amount={from_stake}"
         )
         return True
 

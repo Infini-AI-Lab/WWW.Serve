@@ -224,8 +224,8 @@ class LLMNode:
             await self.credit_ledger.judge_transfer(majority=majority, minority=minority, non_participants=non_participants)
 
         if self.credit_ledger and winner and loser:
-            _ = await self.credit_ledger.transfer_all_stake(loser, winner)
-        else: 
+            _ = await self.credit_ledger.transfer_stake(loser, winner)
+        else:
             _ = await self.credit_ledger.transfer_nothing(A_exec, B_exec)
 
 
@@ -447,7 +447,7 @@ class LLMNode:
         # Judge request
         if await self.judge_dict.get(request.model_request_id):
             if self.credit_ledger and request.executor_node_id != self.node_id:
-                await self.credit_ledger.reward(self.node_id, request.executor_node_id, amount=DEFAULT_CREDIT_REWARD)
+                await self.credit_ledger.reward_judge(self.node_id, request.executor_node_id, amount=DEFAULT_CREDIT_REWARD)
 
             await self._handle_judge_response(request)
             return
@@ -528,15 +528,13 @@ class LLMNode:
         delta = target_stake - cur_stake
 
         if delta > 0:
-            amount = min(delta, cur_credit, 1)
+            amount = min(delta, cur_credit, 2)
             if amount > 0:
                 _ = await self.credit_ledger.stake(self.node_id, amount)
-                # print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
-        # else:
-            amount = min(-delta, cur_stake, 1)
+        else:
+            amount = min(-delta, cur_stake, 2)
             if amount > 0:
                 _ = await self.credit_ledger.unstake(self.node_id, amount)
-                # print(f"[{self.node_id}  ] Current stake: {cur_stake}, load score: {load_score}, queue score: {queue_score}")
 
 
     async def _dispatch_one_request(self, request: "ModelRequest", source: str):
