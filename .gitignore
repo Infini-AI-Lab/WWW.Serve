@@ -193,6 +193,4 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
-excluded/
-scripts/
 experiments/results/

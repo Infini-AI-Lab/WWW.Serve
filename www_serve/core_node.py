@@ -21,9 +21,10 @@ GOSSIP_METRIC_INTERVAL = 3          # Gossip & Metric interval (s)
 DEFAULT_REQUEST_TIMEOUT = 600       # Default timeout for user requests (s)
 DEFAULT_IDLE_USAGE_THRESHOLD = 0.5
 DEFAULT_CREDIT_REWARD = 1
-P_INSPECT = 1.0
+P_INSPECT = 0.1
 K_JUDGES = 3
 
+ENABLE_THINKING = False
 
 class LLMNode:
     def __init__(self,
@@ -603,7 +604,7 @@ class LLMNode:
 
                 if selected_node_id == self.node_id:
                     # print(f"[{self.node_id}  ] Dispatching request {request.model_request_id} using {self.node_id}: {selected_model}")
-                    await self.create_task(self.models.inference_request(selected_model, request))
+                    await self.create_task(self.models.inference_request(selected_model, request, enable_thinking=ENABLE_THINKING))
 
                 else:
                     # Duel-and-Judge Mechanism

@@ -10,9 +10,6 @@ if TYPE_CHECKING:
     from .entities import ModelRequest
 
 
-INPUT_WINDOW_SIZE = 30             # Input window size (s)
-
-
 class RequestManager:
     def __init__(self, node: "LLMNode"):
         self.node = node

@@ -1,6 +1,6 @@
 server_params:
   ip: 127.0.0.1
-  port: 5779
+  port: 5783
   policy: default_sglang
   offload_frequency: 0.0
   queue_frequency: 1.0
@@ -12,7 +12,7 @@ ledger_params:
 
 models:
   - model_path: Qwen/Qwen3-8B
-    base_url: http://192.168.102.11:30001
+    base_url: http://192.168.102.12:30005
     api_key: None
 
     gen_params:

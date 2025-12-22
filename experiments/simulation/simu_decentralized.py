@@ -122,20 +122,19 @@ async def main():
     await construct_network(nodes)
 
     ##### Load input requests and simulate #####
-    # input_path = Path(__file__).parent / "simu_input.json"
-    input_path = Path(__file__).parent / "math500.json"
+    input_path = Path(__file__).parent / "simu_input.json"
+    # input_path = Path(__file__).parent / "math500.json"
 
     with open(input_path, "r", encoding="utf-8") as f:
         poisson_times = json.load(f)
 
-    # tasks = [
-    #     asyncio.create_task(timed_submit(item["idx"], item["problem"], nodes[item["target"]], delay=item["delay"])) for item in poisson_times
-    # ]
-
-    # poisson_times = poisson_times * 2
     tasks = [
-        asyncio.create_task(timed_submit(idx, item["problem"], nodes["node0"], delay=idx)) for idx, item in enumerate(poisson_times)
+        asyncio.create_task(timed_submit(item["idx"], item["problem"], nodes[item["target"]], delay=item["delay"])) for item in poisson_times
     ]
+
+    # tasks = [
+    #     asyncio.create_task(timed_submit(idx, item["problem"], nodes["node0"], delay=idx)) for idx, item in enumerate(poisson_times)
+    # ]
 
     ##### Simulate node dynamics (uncomment to enable) #####
     # asyncio.create_task(node_start_join(node4, node1.communicator.address.to_url(), delay=800))

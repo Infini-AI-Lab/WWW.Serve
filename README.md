@@ -17,7 +17,7 @@ Carnegie Mellon University
 
 ## TL;DR
 
-We introduce **`WWW.Serve`**, a *decentralized framework for trustless yet collaborative multi-LLM serving*. It preserves service providers’ anonymity and privacy, while supporting self-organizing request dispatch, dynamic workload balancing, and autonomous resource/policy control.  
+We introduce **`WWW.Serve`**, a decentralized framework that acts as an open and competitive global market of LLM services. It preserves the flexibility of service providers, allowing them to decide when, under what policies, and with what resources they join the market, while enabling autonomous request routing and computational capacity exchanging across distributed and anonymous LLM servers.
 
 Three key designs are integrated:
 - a blockchain-inspired credit system for trustless collaboration.
@@ -53,7 +53,7 @@ WWWServe/
 |   └── visualization/
 |       └── visualize_xxx.ipynb
 ├── node_configs/
-|   └── nodes.yaml
+|   └── nodex.yaml
 ├── www_serve/
 |   ├── policies/
 |   |   └── default_policy.py
@@ -152,17 +152,9 @@ By default, the simulation outputs are saved in `experiments/results/`, includin
 The simulation results can be analyzed using the Jupyter notebooks in `experiments/visualization/`. These notebooks allow you to visualize: Global SLO attainment, request latency distribution, and server load status.
 
 
-
-### TODOs
-- TODO
-
-
-
 ### Acknowledgment
 
 This work was conducted during **Huanyu Wang**’s internship at Carnegie Mellon University. For questions or collaboration, please contact: `whyisverysmart@gmail.com`
-
-
 
 ### Citation
 ```

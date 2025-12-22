@@ -8,9 +8,6 @@ if TYPE_CHECKING:
     from .entities import ModelRequest
 
 
-DEFAULT_TARGET_TOKEN_USAGE = 0.5
-
-
 class ModelManager:
     """Manager for handling model servers."""
 
@@ -62,7 +59,7 @@ class ModelManager:
         }
 
 
-    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = True):
+    async def inference_request(self, model_path: str, request: "ModelRequest", enable_thinking = False):
         """Inferencing user input with the specified model."""
         gen_params = self.gen_params[model_path]
 
@@ -74,8 +71,7 @@ class ModelManager:
                     "content": request.user_input
                 }],
                 extra_body={
-                    # "chat_template_kwargs": {"enable_thinking": enable_thinking},
-                    "chat_template_kwargs": {"enable_thinking": False},
+                    "chat_template_kwargs": {"enable_thinking": enable_thinking},
                 },
                 temperature = gen_params.get("temperature", 0.6),
                 top_p = gen_params.get("top_p", 0.95),

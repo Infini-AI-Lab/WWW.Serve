@@ -1,24 +1,24 @@
 server_params:
   ip: 127.0.0.1
   port: 5781
-  policy: default_vllm
-  offload_frequency: 0.8
-  queue_frequency: 0.2
-  accept_frequency: 0.8
+  policy: default_sglang
+  offload_frequency: 0.0
+  queue_frequency: 1.0
+  accept_frequency: 1.0
 
 ledger_params:
   initial_credit: 10000.0
   initial_staked: 0.0
 
 models:
-  - model_path: /home/hywang/Reasoning/Decentralized-Agents/excluded/models/meta-llama--Llama-3.1-8B
-    base_url: http://192.168.102.18:30003
+  - model_path: Qwen/Qwen3-8B
+    base_url: http://192.168.102.16:30003
     api_key: None
 
     gen_params:
-      max_tokens: 16
-      temperature: 0.0
+      max_tokens: 4096
+      temperature: 0.6
       top_p: 0.95
     
     dispatch_params:
-      target_token_usage: 0.7
+      target_token_usage: 0.6
