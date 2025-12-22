@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <!-- Primary Meta Tags -->
+  <!-- TODO: Replace with your paper title and author names -->
+  <meta name="title" content="WWW.Serve: A Decentralized Framework for Collaborative LLM Serving - Huanyu Wang, Ziyu Xia, Zhuoming Chen, Beidi Chen">
+  <!-- TODO: Write a compelling 150-160 character description of your research -->
+  <meta name="description" content="WWW.Serve is a decentralized framework for collaborative LLM serving, enabling request routing and workload balancing among distributed and anonymous LLM servers.">
+  <!-- TODO: Add 5-10 relevant keywords for your research area -->
+  <meta name="keywords" content="LLM Serving Systems, Decentralization">
+  <!-- TODO: List all authors -->
+  <meta name="author" content="Huanyu Wang, Ziyu Xia, Zhuoming Chen, Beidi Chen">
+  <meta name="robots" content="index, follow">
+  <meta name="language" content="English">
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="article">
+  <!-- TODO: Replace with your institution or lab name -->
+  <meta property="og:site_name" content="InfiniAI Lab, Carnegie Mellon University">
+  <!-- TODO: Same as paper title above -->
+  <meta property="og:title" content="WWW.Serve: A Decentralized Framework for Collaborative LLM Serving">
+  <!-- TODO: Same as description above -->
+  <meta property="og:description" content="WWW.Serve is a decentralized framework for collaborative LLM serving, enabling request routing and workload balancing among distributed and anonymous LLM servers.">
+  <!-- TODO: Replace with your actual website URL -->
+  <meta property="og:url" content="https://YOUR_DOMAIN.com/YOUR_PROJECT_PAGE">
+  <!-- TODO: Create a 1200x630px preview image and update path -->
+  <meta property="og:image" content="https://YOUR_DOMAIN.com/static/images/social_preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="WWW.Serve - Research Preview">
+  <meta property="article:published_time" content="2024-01-01T00:00:00.000Z">
+  <meta property="article:author" content="Huanyu Wang">
+  <meta property="article:section" content="Research">
+  <meta property="article:tag" content="LLM Serving Systems">
+  <meta property="article:tag" content="Decentralization">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- TODO: Replace with your lab/institution Twitter handle -->
+  <meta name="twitter:site" content="@YOUR_TWITTER_HANDLE">
+  <!-- TODO: Replace with first author's Twitter handle -->
+  <meta name="twitter:creator" content="@AUTHOR_TWITTER_HANDLE">
+  <!-- TODO: Same as paper title above -->
+  <meta name="twitter:title" content="WWW.Serve: A Decentralized Framework for Collaborative LLM Serving">
+  <!-- TODO: Same as description above -->
+  <meta name="twitter:description" content="WWW.Serve is a decentralized framework for collaborative LLM serving, enabling request routing and workload balancing among distributed and anonymous LLM servers.">
+  <!-- TODO: Same as social preview image above -->
+  <meta name="twitter:image" content="https://YOUR_DOMAIN.com/static/images/social_preview.png">
+  <meta name="twitter:image:alt" content="WWW.Serve - Research Preview">
+
+  <!-- Academic/Research Specific -->
+  <meta name="citation_title" content="WWW.Serve: A Decentralized Framework for Collaborative LLM Serving">
+  <meta name="citation_author" content="Wang, Huanyu">
+  <meta name="citation_author" content="Xia, Ziyu">
+  <meta name="citation_author" content="Chen, Zhuoming">
+  <meta name="citation_author" content="Chen, Beidi">
+  <meta name="citation_publication_date" content="2025">
+  <meta name="citation_conference_title" content="CONFERENCE_NAME">
+  <meta name="citation_pdf_url" content="https://YOUR_DOMAIN.com/static/pdfs/paper.pdf">
+  
+  <!-- Additional SEO -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="msapplication-TileColor" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://ajax.googleapis.com">
+  <link rel="preconnect" href="https://documentcloud.adobe.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+
+  <!-- TODO: Replace with your paper title and authors -->
+  <title>WWW.Serve: A Decentralized Framework for Collaborative LLM Serving</title>
+  
+  <!-- Favicon and App Icons -->
+  <link rel="icon" type="image/x-icon" href="static/images/favicon.ico">
+  <link rel="apple-touch-icon" href="static/images/favicon.ico">
+  
+  <!-- Critical CSS - Load synchronously -->
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  
+  <!-- Non-critical CSS - Load asynchronously -->
+  <link rel="preload" href="static/css/bulma-carousel.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/bulma-slider.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/fontawesome.all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  
+  <!-- Fallback for browsers that don't support preload -->
+  <noscript>
+    <link rel="stylesheet" href="static/css/bulma-carousel.min.css">
+    <link rel="stylesheet" href="static/css/bulma-slider.min.css">
+    <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  </noscript>
+  
+  <!-- Fonts - Optimized loading -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Defer non-critical JavaScript -->
+  <script defer src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="https://documentcloud.adobe.com/view-sdk/main.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+  <script defer src="static/js/bulma-carousel.min.js"></script>
+  <script defer src="static/js/bulma-slider.min.js"></script>
+  <script defer src="static/js/index.js"></script>
+  
+  <!-- Structured Data for Academic Papers -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ScholarlyArticle",
+      "headline": "PAPER_TITLE",
+      "description": "BRIEF_DESCRIPTION_OF_YOUR_RESEARCH_CONTRIBUTION_AND_FINDINGS",
+      "author": [
+        {
+          "@type": "Person",
+          "name": "FIRST_AUTHOR_NAME",
+          "affiliation": {
+            "@type": "Organization",
+            "name": "INSTITUTION_NAME"
+          }
+        },
+        {
+          "@type": "Person",
+          "name": "SECOND_AUTHOR_NAME",
+          "affiliation": {
+            "@type": "Organization",
+            "name": "INSTITUTION_NAME"
+          }
+        }
+      ],
+      "datePublished": "2024-01-01",
+      "publisher": {
+        "@type": "Organization",
+        "name": "CONFERENCE_OR_JOURNAL_NAME"
+      },
+      "url": "https://YOUR_DOMAIN.com/YOUR_PROJECT_PAGE",
+      "image": "https://YOUR_DOMAIN.com/static/images/social_preview.png",
+      "keywords": ["KEYWORD1", "KEYWORD2", "KEYWORD3", "machine learning", "computer vision"],
+      "abstract": "FULL_ABSTRACT_TEXT_HERE",
+      "citation": "BIBTEX_CITATION_HERE",
+      "isAccessibleForFree": true,
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "mainEntity": {
+        "@type": "WebPage",
+        "@id": "https://YOUR_DOMAIN.com/YOUR_PROJECT_PAGE"
+      },
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "RESEARCH_AREA_1"
+        },
+        {
+          "@type": "Thing", 
+          "name": "RESEARCH_AREA_2"
+        }
+      ]
+    }
+  </script>
+  
+  <!-- Website/Organization Structured Data -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "INSTITUTION_OR_LAB_NAME",
+      "url": "https://YOUR_INSTITUTION_WEBSITE.com",
+      "logo": "https://YOUR_DOMAIN.com/static/images/favicon.ico",
+      "sameAs": [
+        "https://twitter.com/YOUR_TWITTER_HANDLE",
+        "https://github.com/YOUR_GITHUB_USERNAME"
+      ]
+    }
+  </script>
+</head>
+
+
+
+
+<body>
+
+<!-- Scroll to Top Button -->
+<button class="scroll-to-top" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top">
+  <i class="fas fa-chevron-up"></i>
+</button>
+
+<main id="main-content">
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <!-- TODO: Replace with your paper title -->
+          <h1 class="title is-2 publication-title">WWW.Serve: A Decentralized Framework for Collaborative LLM Serving</h1>
+          <div class="is-size-5 publication-authors">
+            <!-- TODO: Replace with your paper authors and their personal links -->
+            <span class="author-block">
+              <a href="https://whyisverysmart.github.io/" target="_blank">Huanyu Wang</a>,
+            </span>
+            <span class="author-block">
+              <a href="SECOND AUTHOR PERSONAL LINK" target="_blank">Ziyu Xia</a>,
+            </span>
+            <span class="author-block">
+              <a href="https://dreaming-panda.github.io/" target="_blank">Zhuoming Chen</a>,
+            </span>
+            <span class="author-block">
+              <a href="https://www.andrew.cmu.edu/user/beidic/" target="_blank">Beidi Chen</a>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <!-- TODO: Replace with your institution and conference/journal info -->
+            <span class="author-block">
+              <small>Carnegie Mellon University</small>
+            </span>
+            <!-- TODO: Remove this line if no equal contribution -->
+            <!-- <span class="eql-cntrb"><small><br><sup>*</sup>Indicates Equal Contribution</small></span> -->
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <span class="link-block">
+                <a href="https://github.com/YOUR REPO HERE" target="_blank"
+                  class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                    <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                </a>
+              </span>
+
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/<ARXIV PAPER ID>" target="_blank"
+                  class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                    <i class="ai ai-arxiv"></i>
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Paper abstract -->
+<section class="section hero is-light">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">TL;DR</h2>
+        <div class="content has-text-justified">
+          <p>
+            <strong style="color: #444">WWW.Serve</strong> is a decentralized framework that acts as an <strong style="color: #444">open and competitive global market of LLM services</strong>. 
+            It preserves the flexibility of service providers, allowing them to decide when, under what policies, and with what resources they join the market, 
+            while enabling autonomous request routing and computational capacity exchanging across distributed and anonymous LLM servers.
+          </p>
+        </div>
+        <figure class="image is-inline-block" style="width:40%;">
+          <img src="static/images/system_overview.png" alt="System Overview">
+        </figure>
+        <div style="
+          max-width: 80%;
+          margin: 0 auto 0px auto;
+          font-size: 14px;
+          margin-top: 10px;
+          font-style: italic;
+          text-align: center;
+        ">
+          <strong style="color: #444">Figure 1:</strong> Overview of WWW.Serve's network architecture: 
+          users interact through a transparent, cloud-like inference interface, 
+          while service providers flexibly contribute their service and compute resources without exposing sensitive information.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- End paper abstract -->
+
+
+<section class="section hero is-small">
+  <div class="container is-max-widescreen">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3"><i class="ti ti-compass" style="color: #0073e6;"></i> Introduction & Motivation</h2>
+        <div class="content has-text-justified" style="font-size: 16px; line-height: 1.5;">
+          <p>
+            LLM services are mostly centralized, which leads to inherent scalability bottlenecks and leaves substantial GPU resources underutilized. 
+            While decentralization could potentially alleviate these issues, existing decentralized serving systems remain largely impractical in real-world settings. Specifically, they face two major limitations:
+          </p>
+
+          <ol style="list-style: none;">
+            <li>
+              <i class="ti ti-alert-triangle" style="color: red; font-size: 1.1em;"></i>
+              <strong style="color: #444">Overemphasis on the cooperative aspect among GPU providers:</strong> Existing systems predominantly promote cooperation among GPU providers, 
+              but often <strong style="color: #e74c3c;">overlook their inherent competitive dynamics</strong>. 
+              GPU providers, as holders of the computational assets, are naturally incentivized to maximize their own profit. 
+              However, current designs may impose rigid constraints, such as excessive platform-level oversight or requiring execution of all assigned requests on fixed software stacks and hardware configurations.
+            </li>
+            <li>
+              <i class="ti ti-alert-triangle" style="color: red; font-size: 1.1em;"></i>
+              <strong style="color: #444">Lack of workload flexibility:</strong> Providers typically maintain their own prioritized workloads, which may fluctuate over time. 
+              Existing systems rarely offer mechanisms for providers to flexibly control how and when they participate in the decentralized network.
+            </li>
+          </ol>
+
+          <p>
+            We envision a decentralized framework that functions as an <strong style="color: #27ae60">open, competitive market of LLM services</strong>, allowing providers to choose 
+            <strong style="color: #27ae60">when, under what policies, and with what resources</strong> they participate. Such a system should meet three key requirements:
+          </p>
+
+          <ol style="list-style: none;">
+            <li>
+              <i class="ti ti-target" style="color: blue; font-size: 1.1em;"></i>
+              <strong style="color: #444">Incentivized high-quality services:</strong> The framework should reward providers for delivering superior performance, including faster hardware, user-oriented scheduling, advanced serving systems, and high-quality models. These incentives further encourage innovation, enabling providers to offer better services at lower cost.
+            </li>
+            <li>
+              <i class="ti ti-target" style="color: blue; font-size: 1.1em;"></i>
+              <strong style="color: #444">Market-driven exchange of computational capacity:</strong> Overloaded servers should be able to outsource requests, while underutilized servers can capitalize on idle resources, allowing supply and demand of compute power to self-balance through decentralized interactions.
+            </li>
+            <li>
+              <i class="ti ti-target" style="color: blue; font-size: 1.1em;"></i>
+              <strong style="color: #444">Principled and resilient service:</strong> The system should incorporate robust routing protocols that improve global efficiency even under highly dynamic and unpredictable real-world resource availability.
+            </li>
+          </ol>
+
+          <p>
+            To this end, we propose <strong style="color: #0073e6;">WWW.Serve</strong>, a decentralized framework for collaborative LLM serving, 
+            enabling request routing and workload balancing among distributed and anonymous LLM servers.
+          </p>
+        </div>
+
+        <figure class="image is-inline-block" style="width:60%;">
+          <img src="static/images/framework.png" alt="Framework">
+        </figure>
+        <div style="
+          max-width: 80%;
+          margin: 0 auto 0px auto;
+          font-size: 14px;
+          margin-top: 10px;
+          font-style: italic;
+          text-align: center;
+        ">
+          <strong style="color: #444">Figure 2:</strong> The general request routing workflow within WWW.Serve. 
+          LLM servers act as anonymous nodes, collaboratively serving requests and exchanging computational resources across the network.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section hero is-small">
+  <div class="container is-max-widescreen">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3"><i class="ti ti-tools" style="color: #0073e6;"></i> System Overview</h2>
+        <div class="content has-text-justified" style="font-size: 16px; line-height: 1.5;">
+          <p>
+            At the heart of WWW.Serve are <strong style="color: #444">three core mechanisms</strong> that enable efficient, reliable, and flexible decentralized LLM serving, each addressing a key challenge in such networks:
+          </p>
+
+          <ol style="list-style: none;">
+            <li>
+              <i class="ti ti-settings" style="color: orange; font-size: 1.1em;"></i>
+              <strong style="color: #444">Credit-based Transaction System:</strong> Provides a reputation-like measure under anonymity. 
+              Nodes earn credits by executing delegated requests and spend credits when offloading their own tasks. 
+              Request routing follows a PoS-style scheduler, where a node’s chance of being selected is proportional to its staked credits. 
+              This allows overloaded nodes to offload work while underutilized nodes convert idle resources into future offloading capacity, forming a self-regulating, market-driven exchange of compute.
+            </li>
+
+            <li>
+              <i class="ti ti-settings" style="color: orange; font-size: 1.1em;"></i>
+              <strong style="color: #444">Duel-and-Judge Mechanism:</strong> Ensures service quality in a competitive, anonymous environment. 
+              A subset of offloaded requests is evaluated through pairwise comparisons, rewarding the better response and penalizing the worse one (<a href="#fig:duel-mechanism"><strong>Figure 3</strong></a>). 
+              Credits thus redistribute dynamically according to service quality, discouraging low-quality providers and amplifying the influence of consistently strong performers.
+            </li>
+
+            <figure id="fig:duel-mechanism" style="width: 40%; margin: 14px auto; text-align: center;">
+              <img src="static/images/duel_and_judge.png" alt="Duel-and-Judge Mechanism" style="width: 100%; height: auto; display: block;">
+            </figure>
+            <div style="
+              max-width: 80%;
+              margin: 0 auto 22px auto;
+              font-size: 14px;
+              margin-top: 10px;
+              font-style: italic;
+              text-align: center;
+            ">
+              <strong style="color: #444">Figure 3:</strong> Duel-and-judge mechanism: 
+              a subset of offloaded requests is collectively evaluated collectively within the network through pairwise comparison, 
+              with the superior response receiving a credit reward and the inferior response incurring a penalty.
+            </div>
+
+            <li>
+              <i class="ti ti-settings" style="color: orange; font-size: 1.1em;"></i>
+              <strong style="color: #444">Gossip-driven Peer Synchronization:</strong> Maintains robustness under highly dynamic resource availability. 
+              Nodes periodically exchange peer-status information through lightweight gossip, enabling rapid detection of new, offline, or updated peers without centralized oversight. 
+              This keeps the network up-to-date and resilient despite frequent join/leave events.
+            </li>
+          </ol>
+
+          <p>
+            Together, these mechanisms form a self-organizing ecosystem where nodes are motivated to contribute compute resources, maintain high service quality, and adapt to dynamic network conditions.
+          </p>
+
+          <p>
+            The <strong style="color: #444;">request workflow</strong> is demonstrated in <a href="#fig:request-workflow"><strong>Figure 4</strong></a>: upon receiving a user query, 
+            a node decides whether to execute it locally or offload it to the network. 
+            Local execution leverages heterogeneous models and runtimes via a unified interface, 
+            enabling seamless participation of service providers with diverse hardware and software. 
+            For remote execution, the node selects a trustworthy executor using a Proof-of-Stake-based scheduler, forwards the request, and retrieves the response once processing is complete.
+          </p>
+        </div>
+
+        <figure id="fig:request-workflow" class="image is-inline-block" style="width:60%;">
+          <img src="static/images/request_workflow.png" alt="Request Workflow">
+        </figure>
+        <div style="
+          max-width: 80%;
+          margin: 0 auto 0px auto;
+          font-size: 14px;
+          margin-top: 10px;
+          font-style: italic;
+          text-align: center;
+        ">
+          <strong style="color: #444">Figure 4:</strong> End-to-end workflow of a single user request, including local execution or remote offloading via PoS-based scheduling.
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section hero is-small">
+  <div class="container is-max-widescreen">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3"><i class="ti ti-trending-up" style="color: #0073e6;"></i> Evaluation</h2>
+        <div class="content has-text-justified" style="font-size: 16px; line-height: 1.5;">
+          <p>
+            First, We evaluate the <strong style="color: #444">scheduling efficiency</strong> of WWW.Serve under heterogeneous models, diverse GPU hardware, and fluctuating workloads. 
+            In all settings, we compare three strategies: single-node deployment, centralized scheduling, and our decentralized scheduling, and measure global SLO attainment.
+            As shown in <a href="#fig:slo-results"><strong>Figure 5</strong></a>, WWW.Serve consistently achieves <strong style="color: #444">near-centralized efficiency</strong>, substantially outperforming single-node execution. 
+          </p>
+
+          <p>
+            We further assess the <strong style="color: #444">effectiveness of duel-and-judge mechanism</strong> by constructing a network with high-, mid-, low-quality models and random responders. 
+            <a href="#fig:duel-results"><strong>Figure 6</strong></a> shows the evolution of credits over time: stronger models steadily gain credits, weaker ones grow slowly, and random responders are quickly penalized. 
+            These results confirm that the duel-and-judge mechanism accurately differentiates service quality and aligns incentives toward providing reliable, high-quality responses.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 60% 30%; justify-content: center; gap: 5%; text-align: center; margin-bottom: 22px;">
+            <div>
+              <img id="fig:slo-results" src="static/images/SLO_results.png" alt="SLO Results" style="display:block; margin: 0 auto;">
+              <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                <strong style="color: #444">Figure 5:</strong> Comparison of global SLO attainment across single-node, centralized, and decentralized (WWW.Serve) deployments under four different experimental settings.
+              </figcaption>
+            </div>
+            <div>
+              <img id="fig:duel-results" src="static/images/duel_results.png" alt="Duel Results" style="display:block; margin: 0 auto;">
+              <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                <strong style="color: #444">Figure 6:</strong> Evolution of credits (left) and duel outcomes (right) for different types of nodes.
+              </figcaption>
+            </div>
+          </div>
+
+          <p>
+            WWW.Serve is designed to operate under <strong style="color: #444">highly dynamic conditions</strong>, with nodes joining and leaving unpredictably. 
+            As illustrated in <a href="#fig:dynamic-participation"><strong>Figure 7</strong></a>, when new nodes join, the gossip-based protocol quickly detects them and redistributes requests, reducing latency. 
+            Conversely, node departures can temporarily increase load on remaining nodes, but WWW.Serve ensures continuous service.
+          </p>
+
+          <p>
+            The system also supports <strong style="color: #444">flexible user-level policies</strong>. Nodes with higher stake or acceptance frequency handle more delegated requests, 
+            while adjusting offloading frequency helps redistribute workloads under high pressure (<a href="#fig:flexible-policy"><strong>Figure 8</strong></a>). 
+            These results show that WWW.Serve enables service providers to autonomously control their participation, 
+            balancing immediate performance with long-term benefit, and providing fine-grained control over both efficiency and incentives.
+          </p>
+
+          <div style="display: grid; grid-template-columns: 36% 54%; justify-content: center; gap: 5%; text-align: center;">
+            <div>
+              <img id="fig:dynamic-participation" src="static/images/dynamic_participation.png" alt="SLO Results" style="display:block; margin: 0 auto;">
+              <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                <strong style="color: #444">Figure 7:</strong> Request latency. 
+                Blue line indicates node join/leave events; black line shows the windowed average latency.
+              </figcaption>
+            </div>
+            <div>
+              <img id="fig:flexible-policy" src="static/images/flexible_policy.png" alt="Duel Results" style="display:block; margin: 0 auto;">
+              <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                <strong style="color: #444">Figure 8:</strong> Left: Number of running requests under different stake amounts. 
+                Middle: Number of running requests under different acceptance frequencies. 
+                Right: SLO attainment under different offloading frequencie.
+              </figcaption>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section hero is-small">
+  <div class="container is-max-widescreen">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3"><i class="ti ti-rocket" style="color: #0073e6;"></i> Quality Incentivization</h2>
+        <div class="content has-text-justified" style="font-size: 16px; line-height: 1.5;">
+          <p>
+            To empirically demonstrate that WWW.Serve effectively incentivizes superior LLM serving,
+            we design four controlled experiments, each consisting of three classes of nodes with varied capabilities.
+            These experiments are designed to study how the system rewards
+            <strong style="color: #444">higher-quality models, more advanced serving systems, and faster hardware</strong>.
+          </p>
+
+          <ol style="list-style: none;">
+            <li>
+              <i class="ti ti-server" style="color: green; font-size: 1.1em;"></i>
+              <strong style="color: #444">Model Capacity:</strong>
+              We deploy three classes of nodes serving Qwen3-8B, Qwen3-4B, and Qwen3-0.6B models to study
+              how model capacity influences credit accumulation.
+              As shown in <a href="#fig:model-size"><strong>Figure 9</strong></a>,
+              larger models obtain higher duel-and-judge win rates (0.57, 0.53, and 0.39, respectively),
+              which is reflected in progressively faster credit growth from 0.6B to 8B.
+            </li>
+
+            <li>
+              <i class="ti ti-server" style="color: green; font-size: 1.1em;"></i>
+              <strong style="color: #444">Quantization:</strong>
+              We deploy three classes of nodes serving the same Qwen3-8B model with different quantization strategies
+              (fp8wo, int4wo-128, and int4wo-32 based on torchao).
+              As shown in <a href="#fig:quantization"><strong>Figure 10</strong></a>,
+              more aggressive quantization consistently lowers duel-and-judge win rates
+              (0.54, 0.49, and 0.47, respectively), which in turn slows credit accumulation.
+            </li>
+
+
+            <div style="display: grid; grid-template-columns: 45% 45%; justify-content: center; gap: 5%; text-align: center; margin: 22px auto;">
+              <div>
+                <img id="fig:model-size" src="static/images/model_size.png" alt="Model Size" style="display:block; margin: 0 auto;">
+                <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                  <strong style="color: #444">Figure 9:</strong> Impact of model size on credit dynamics.
+                  Larger models achieve higher duel win rates, resulting in faster credit accumulation.
+                </figcaption>
+              </div>
+              <div>
+                <img id="fig:quantization" src="static/images/quantization.png" alt="Quantization" style="display:block; margin: 0 auto;">
+                <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                  <strong style="color: #444">Figure 10:</strong> Impact of quantization on credit dynamics.
+                  Aggressive quantization degrades response quality, reducing duel win rates and slowing credit growth.
+                </figcaption>
+              </div>
+            </div>
+
+            <li>
+              <i class="ti ti-server" style="color: green; font-size: 1.1em;"></i>
+              <strong style="color: #444">Serving Efficiency:</strong>
+              We deploy three classes of nodes serving the same Qwen3-8B model with different attention backends
+              (FlashInfer, Triton, and SDPA) to evaluate the impact of serving system efficiency on credit dynamics.
+              As shown in <a href="#fig:attention"><strong>Figure 11</strong></a>,
+              more efficient attention backends achieve higher request throughput and
+              serve a larger number of requests (788, 786, and 426, respectively).
+              With comparable duel-and-judge win rates across backends, this throughput advantage
+              directly translates into faster credit accumulation.
+            </li>
+
+            <li>
+              <i class="ti ti-server" style="color: green; font-size: 1.1em;"></i>
+              <strong style="color: #444">Hardware:</strong>
+              We deploy three classes of nodes serving the same Qwen3-8B model with different GPU hardware (A100, RTX4090, and RTX3090)
+              to evaluate the impact of computational resources on credit dynamics.
+              As shown in <a href="#fig:hardware"><strong>Figure 12</strong></a>,
+              nodes with higher computational capacity and larger GPU memory achieve higher request throughput
+              and serve a larger number of requests (1717, 1195, and 1088, respectively),
+              which directly translates into faster credit accumulation.
+            </li>
+
+            <div style="display: grid; grid-template-columns: 45% 45%; justify-content: center; gap: 5%; text-align: center; margin: 22px auto;">
+              <div>
+                <img id="fig:attention" src="static/images/attention.png" alt="Attention" style="display:block; margin: 0 auto;">
+                <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                  <strong style="color: #444">Figure 11:</strong> Impact of attention backend on credit dynamics.
+                  More efficient backends achieve higher request throughput and serve more concurrent requests,
+                  which directly translates into faster credit accumulation.
+                </figcaption>
+              </div>
+              <div>
+                <img id="fig:hardware" src="static/images/hardware.png" alt="Hardware" style="display:block; margin: 0 auto;">
+                <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
+                  <strong style="color: #444">Figure 12:</strong> Impact of hardware on credit dynamics.
+                  Nodes with higher computational capacity and larger GPU memory achieve higher request throughput and serve more concurrent requests,
+                  which directly translates into faster credit accumulation.
+                </figcaption>
+              </div>
+            </div>
+          </ol>
+
+          <p>
+            These four controlled experiments collectively demonstrate that WWW.Serve
+            rewards providers for delivering
+            <strong style="color: #444">superior LLM service along both quality and efficiency dimensions</strong>.
+            On one hand, nodes with higher model capacity or less aggressive quantization consistently
+            achieve higher <strong style="color: #444">duel-and-judge win rates</strong>.
+            On the other hand, nodes with more efficient serving backends or more powerful GPU hardware
+            achieve <strong style="color: #444">higher throughput and more concurrent requests</strong>.
+            Both factors contribute to credit accumulation.
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section hero is-small is-light">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column">
+        <h2 class="title is-3">Conclusion</h2>
+        <div class="content has-text-justified">
+          <p>
+            We introduces <strong style="color: #444">WWW.Serve</strong>, a fully decentralized framework for trustless and collaborative LLM serving. 
+            Operating as an <strong style="color: #444">open, competitive market for computational resources</strong>, 
+            it enables anonymous participants to autonomously route requests, balance workloads, and provide high-quality services. 
+            Our experiments demonstrate comparable scheduling efficiency along with strong adaptivity to dynamic resources and flexible serving policies, 
+            highlighting WWW.Serve’s potential as a scalable and privacy-preserving foundation for next-generation LLM services.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!--BibTex citation -->
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <div class="bibtex-header">
+      <h3 class="title">BibTeX</h3>
+      <button class="copy-bibtex-btn" onclick="copyBibTeX()" title="Copy BibTeX to clipboard">
+        <i class="fas fa-copy"></i>
+        <span class="copy-text">Copy</span>
+      </button>
+    </div>
+    <pre id="bibtex-code"><code style="font-size: 14px;">@article{YourPaperKey2024,
+  title={Your Paper Title Here},
+  author={First Author and Second Author and Third Author},
+  journal={Conference/Journal Name},
+  year={2024},
+  url={https://your-domain.com/your-project-page}
+}</code></pre>
+  </div>
+</section>
+<!--End BibTex citation -->
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p style="font-size: 14px;">
+            This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+            You are free to borrow the source code of this website, we just ask that you link back to this page in the footer. <br> This website is licensed under a <a rel="license"  href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+
+</body>
+</html>
