@@ -208,7 +208,7 @@
               <a href="https://whyisverysmart.github.io/" target="_blank">Huanyu Wang</a>,
             </span>
             <span class="author-block">
-              <a href="SECOND AUTHOR PERSONAL LINK" target="_blank">Ziyu Xia</a>,
+              <a href="https://openreview.net/profile?id=%7EZiyu_Xia1" target="_blank">Ziyu Xia</a>,
             </span>
             <span class="author-block">
               <a href="https://dreaming-panda.github.io/" target="_blank">Zhuoming Chen</a>,
@@ -230,7 +230,7 @@
           <div class="column has-text-centered">
             <div class="publication-links">
               <span class="link-block">
-                <a href="https://github.com/YOUR REPO HERE" target="_blank"
+                <a href="https://github.com/Infini-AI-Lab/WWW.Serve" target="_blank"
                   class="external-link button is-normal is-rounded is-dark">
                   <span class="icon">
                     <i class="fab fa-github"></i>
@@ -280,9 +280,9 @@
           font-style: italic;
           text-align: center;
         ">
-          <strong style="color: #444">Figure 1:</strong> Overview of WWW.Serve's network architecture: 
-          users interact through a transparent, cloud-like inference interface, 
-          while service providers flexibly contribute their service and compute resources without exposing sensitive information.
+          <strong style="color: #444">Figure 1:</strong> System-level overview.
+          WWW.Serve operates as an intermediate decentralized serving layer between users and LLM service providers,
+          offering users access to an open and competitive market of worldwide LLM services while preserving service providers’ anonymity and flexibility.
         </div>
       </div>
     </div>
@@ -354,8 +354,8 @@
           font-style: italic;
           text-align: center;
         ">
-          <strong style="color: #444">Figure 2:</strong> The general request routing workflow within WWW.Serve. 
-          LLM servers act as anonymous nodes, collaboratively serving requests and exchanging computational resources across the network.
+          <strong style="color: #444">Figure 2:</strong> Collaborative request serving workflow within WWW.Serve.
+          Inference requests follow a collaborative workflow that performs decentralized routing, execution, and quality-aware evaluation.
         </div>
       </div>
     </div>
@@ -458,13 +458,27 @@
             As shown in <a href="#fig:slo-results"><strong>Figure 5</strong></a>, WWW.Serve consistently achieves <strong style="color: #444">near-centralized efficiency</strong>, substantially outperforming single-node execution. 
           </p>
 
-          <p>
+          <figure id="fig:duel-mechanism" style="width: 60%; margin: 14px auto; text-align: center;">
+            <img id="fig:slo-results" src="static/images/SLO_results.png" alt="SLO Results" style="width: 100%; height: auto; display: block;">
+          </figure>
+          <div style="
+            max-width: 80%;
+            margin: 0 auto 22px auto;
+            font-size: 14px;
+            margin-top: 10px;
+            font-style: italic;
+            text-align: center;
+          ">
+            <strong style="color: #444">Figure 5:</strong> Comparison of global SLO attainment across single-node, centralized, and decentralized (WWW.Serve) deployments under four different experimental settings.
+          </div>
+
+          <!-- <p>
             We further assess the <strong style="color: #444">effectiveness of duel-and-judge mechanism</strong> by constructing a network with high-, mid-, low-quality models and random responders. 
             <a href="#fig:duel-results"><strong>Figure 6</strong></a> shows the evolution of credits over time: stronger models steadily gain credits, weaker ones grow slowly, and random responders are quickly penalized. 
             These results confirm that the duel-and-judge mechanism accurately differentiates service quality and aligns incentives toward providing reliable, high-quality responses.
-          </p>
+          </p> -->
 
-          <div style="display: grid; grid-template-columns: 60% 30%; justify-content: center; gap: 5%; text-align: center; margin-bottom: 22px;">
+          <!-- <div style="display: grid; grid-template-columns: 60% 30%; justify-content: center; gap: 5%; text-align: center; margin-bottom: 22px;">
             <div>
               <img id="fig:slo-results" src="static/images/SLO_results.png" alt="SLO Results" style="display:block; margin: 0 auto;">
               <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
@@ -477,35 +491,66 @@
                 <strong style="color: #444">Figure 6:</strong> Evolution of credits (left) and duel outcomes (right) for different types of nodes.
               </figcaption>
             </div>
-          </div>
+          </div> -->
+
+          <!-- <figure id="fig:duel-mechanism" style="width: 40%; margin: 14px auto; text-align: center;">
+            <img src="static/images/dynamic_participation.png" alt="Dynamic Participation" style="width: 100%; height: auto; display: block;">
+          </figure>
+          <div style="
+            max-width: 80%;
+            margin: 0 auto 22px auto;
+            font-size: 14px;
+            margin-top: 10px;
+            font-style: italic;
+            text-align: center;
+          ">
+            <strong style="color: #444">Figure 7:</strong> Request latency.
+            Blue line indicates node join/leave events; black line shows the windowed average latency.
+          </div> -->
 
           <p>
             WWW.Serve is designed to operate under <strong style="color: #444">highly dynamic conditions</strong>, with nodes joining and leaving unpredictably. 
-            As illustrated in <a href="#fig:dynamic-participation"><strong>Figure 7</strong></a>, when new nodes join, the gossip-based protocol quickly detects them and redistributes requests, reducing latency. 
+            As illustrated in <a href="#fig:dynamic-participation"><strong>Figure 6</strong></a>, when new nodes join, the gossip-based protocol quickly detects them and redistributes requests, reducing latency. 
             Conversely, node departures can temporarily increase load on remaining nodes, but WWW.Serve ensures continuous service.
           </p>
 
+          <!-- <figure id="fig:duel-mechanism" style="width: 60%; margin: 14px auto; text-align: center;">
+            <img src="static/images/flexible_policy.png" alt="Flexible Policy" style="width: 100%; height: auto; display: block;">
+          </figure>
+          <div style="
+            max-width: 80%;
+            margin: 0 auto 22px auto;
+            font-size: 14px;
+            margin-top: 10px;
+            font-style: italic;
+            text-align: center;
+          ">
+            <strong style="color: #444">Figure 8:</strong> Left: Number of running requests under different stake amounts. 
+            Middle: Number of running requests under different acceptance frequencies. 
+            Right: SLO attainment under different offloading frequencies.
+          </div> -->
+
           <p>
             The system also supports <strong style="color: #444">flexible user-level policies</strong>. Nodes with higher stake or acceptance frequency handle more delegated requests, 
-            while adjusting offloading frequency helps redistribute workloads under high pressure (<a href="#fig:flexible-policy"><strong>Figure 8</strong></a>). 
+            while adjusting offloading frequency helps redistribute workloads under high pressure (<a href="#fig:flexible-policy"><strong>Figure 7</strong></a>). 
             These results show that WWW.Serve enables service providers to autonomously control their participation, 
             balancing immediate performance with long-term benefit, and providing fine-grained control over both efficiency and incentives.
           </p>
 
           <div style="display: grid; grid-template-columns: 36% 54%; justify-content: center; gap: 5%; text-align: center;">
             <div>
-              <img id="fig:dynamic-participation" src="static/images/dynamic_participation.png" alt="SLO Results" style="display:block; margin: 0 auto;">
+              <img id="fig:dynamic-participation" src="static/images/dynamic_participation.png" alt="Dynamic Participation" style="display:block; margin: 0 auto;">
               <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                <strong style="color: #444">Figure 7:</strong> Request latency. 
+                <strong style="color: #444">Figure 6:</strong> Request latency. 
                 Blue line indicates node join/leave events; black line shows the windowed average latency.
               </figcaption>
             </div>
             <div>
-              <img id="fig:flexible-policy" src="static/images/flexible_policy.png" alt="Duel Results" style="display:block; margin: 0 auto;">
+              <img id="fig:flexible-policy" src="static/images/flexible_policy.png" alt="Flexible Policy" style="display:block; margin: 0 auto;">
               <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                <strong style="color: #444">Figure 8:</strong> Left: Number of running requests under different stake amounts. 
+                <strong style="color: #444">Figure 7:</strong> Left: Number of running requests under different stake amounts. 
                 Middle: Number of running requests under different acceptance frequencies. 
-                Right: SLO attainment under different offloading frequencie.
+                Right: SLO attainment under different offloading frequencies.
               </figcaption>
             </div>
           </div>
@@ -537,7 +582,7 @@
               <strong style="color: #444">Model Capacity:</strong>
               We deploy three classes of nodes serving Qwen3-8B, Qwen3-4B, and Qwen3-0.6B models to study
               how model capacity influences credit accumulation.
-              As shown in <a href="#fig:model-size"><strong>Figure 9</strong></a>,
+              As shown in <a href="#fig:model-size"><strong>Figure 8</strong></a>,
               larger models obtain higher duel-and-judge win rates (0.57, 0.53, and 0.39, respectively),
               which is reflected in progressively faster credit growth from 0.6B to 8B.
             </li>
@@ -547,7 +592,7 @@
               <strong style="color: #444">Quantization:</strong>
               We deploy three classes of nodes serving the same Qwen3-8B model with different quantization strategies
               (fp8wo, int4wo-128, and int4wo-32 based on torchao).
-              As shown in <a href="#fig:quantization"><strong>Figure 10</strong></a>,
+              As shown in <a href="#fig:quantization"><strong>Figure 9</strong></a>,
               more aggressive quantization consistently lowers duel-and-judge win rates
               (0.54, 0.49, and 0.47, respectively), which in turn slows credit accumulation.
             </li>
@@ -557,14 +602,14 @@
               <div>
                 <img id="fig:model-size" src="static/images/model_size.png" alt="Model Size" style="display:block; margin: 0 auto;">
                 <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                  <strong style="color: #444">Figure 9:</strong> Impact of model size on credit dynamics.
+                  <strong style="color: #444">Figure 8:</strong> Impact of model size on credit dynamics.
                   Larger models achieve higher duel win rates, resulting in faster credit accumulation.
                 </figcaption>
               </div>
               <div>
                 <img id="fig:quantization" src="static/images/quantization.png" alt="Quantization" style="display:block; margin: 0 auto;">
                 <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                  <strong style="color: #444">Figure 10:</strong> Impact of quantization on credit dynamics.
+                  <strong style="color: #444">Figure 9:</strong> Impact of quantization on credit dynamics.
                   Aggressive quantization degrades response quality, reducing duel win rates and slowing credit growth.
                 </figcaption>
               </div>
@@ -575,7 +620,7 @@
               <strong style="color: #444">Serving Efficiency:</strong>
               We deploy three classes of nodes serving the same Qwen3-8B model with different attention backends
               (FlashInfer, Triton, and SDPA) to evaluate the impact of serving system efficiency on credit dynamics.
-              As shown in <a href="#fig:attention"><strong>Figure 11</strong></a>,
+              As shown in <a href="#fig:attention"><strong>Figure 10</strong></a>,
               more efficient attention backends achieve higher request throughput and
               serve a larger number of requests (788, 786, and 426, respectively).
               With comparable duel-and-judge win rates across backends, this throughput advantage
@@ -587,7 +632,7 @@
               <strong style="color: #444">Hardware:</strong>
               We deploy three classes of nodes serving the same Qwen3-8B model with different GPU hardware (A100, RTX4090, and RTX3090)
               to evaluate the impact of computational resources on credit dynamics.
-              As shown in <a href="#fig:hardware"><strong>Figure 12</strong></a>,
+              As shown in <a href="#fig:hardware"><strong>Figure 11</strong></a>,
               nodes with higher computational capacity and larger GPU memory achieve higher request throughput
               and serve a larger number of requests (1717, 1195, and 1088, respectively),
               which directly translates into faster credit accumulation.
@@ -597,7 +642,7 @@
               <div>
                 <img id="fig:attention" src="static/images/attention.png" alt="Attention" style="display:block; margin: 0 auto;">
                 <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                  <strong style="color: #444">Figure 11:</strong> Impact of attention backend on credit dynamics.
+                  <strong style="color: #444">Figure 10:</strong> Impact of attention backend on credit dynamics.
                   More efficient backends achieve higher request throughput and serve more concurrent requests,
                   which directly translates into faster credit accumulation.
                 </figcaption>
@@ -605,7 +650,7 @@
               <div>
                 <img id="fig:hardware" src="static/images/hardware.png" alt="Hardware" style="display:block; margin: 0 auto;">
                 <figcaption style="font-size: 14px; margin-top: 10px; font-style: italic;">
-                  <strong style="color: #444">Figure 12:</strong> Impact of hardware on credit dynamics.
+                  <strong style="color: #444">Figure 11:</strong> Impact of hardware on credit dynamics.
                   Nodes with higher computational capacity and larger GPU memory achieve higher request throughput and serve more concurrent requests,
                   which directly translates into faster credit accumulation.
                 </figcaption>
