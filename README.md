@@ -10,7 +10,7 @@ Carnegie Mellon University
 </div>
 
 <div align="center">
-[<a href="TODO">Paper</a>] | [<a href="TODO">Blog</a>]
+[<a href="TODO">Paper</a>] | [<a href="https://infini-ai-lab.github.io/WWW.Serve">Blog</a>]
 </div>
 
 
@@ -21,7 +21,7 @@ Carnegie Mellon University
   <img src="assets/overview.png" width="90%" />
 </div>
 
-**`WWW.Serve`** operates as an intermediate decentralized serving layer between users and LLM service providers, offering users access to an open and competitive market of worldwide LLM services while preserving service providers’ anonymity and flexibility. Within WWW.Serve, inference requests follow a collaborative workflow that performs decentralized routing, execution, and quality-aware evaluation.
+**`WWW.Serve`** operates as an intermediate decentralized serving layer between users and LLM service providers, offering users access to an open and competitive market of worldwide LLM services while preserving service providers’ anonymity and flexibility. Within `WWW.Serve`, inference requests follow a collaborative workflow that performs decentralized routing, execution, and quality-aware evaluation.
 
 Three key designs are integrated:
 - a credit-based transaction system for trustless collaboration.
