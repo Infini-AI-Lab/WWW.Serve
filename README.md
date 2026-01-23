@@ -17,11 +17,15 @@ Carnegie Mellon University
 
 ## TL;DR
 
-We introduce **`WWW.Serve`**, a decentralized framework that acts as an open and competitive global market of LLM services. It preserves the flexibility of service providers, allowing them to decide when, under what policies, and with what resources they join the market, while enabling autonomous request routing and computational capacity exchanging across distributed and anonymous LLM servers.
+<div align="center">
+  <img src="assets/overview.png" width="90%" />
+</div>
+
+**`WWW.Serve`** operates as an intermediate decentralized serving layer between users and LLM service providers, offering users access to an open and competitive market of worldwide LLM services while preserving service providers’ anonymity and flexibility. Within WWW.Serve, inference requests follow a collaborative workflow that performs decentralized routing, execution, and quality-aware evaluation.
 
 Three key designs are integrated:
-- a blockchain-inspired credit system for trustless collaboration.
-- gossip-driven peer synchronization for flexible participation.
+- a credit-based transaction system for trustless collaboration.
+- a gossip-driven protocol for dynamic peer synchronization.
 - a duel-and-judge mechanism for robust contributor evaluation.
 
 Under various configurations, `WWW.Serve` improves global SLO attainment by up to <strong>1.5x</strong> and lowers latency by <strong>27.6%</strong>. Its performance approaches, and in some cases surpasses, centralized scheduling, while preserving the benefits of decentralization.
