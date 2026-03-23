@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>WWW&#46;Serve: a Decentralized Framework for Collaborative LLM Serving</h1>
+<h1>WWW&#46;Serve: Interconnecting Global LLM Services through Decentralization</h1>
 
 Huanyu Wang, Ziyu Xia, Zhuoming Chen, Beidi Chen
 
@@ -155,10 +155,6 @@ By default, the simulation outputs are saved in `experiments/results/`, includin
 
 The simulation results can be analyzed using the Jupyter notebooks in `experiments/visualization/`. These notebooks allow you to visualize: Global SLO attainment, request latency distribution, and server load status.
 
-
-### Acknowledgment
-
-This work was conducted during **Huanyu Wang**’s internship at Carnegie Mellon University. For questions or collaboration, please contact: `whyisverysmart@gmail.com`
 
 ### Citation
 ```
