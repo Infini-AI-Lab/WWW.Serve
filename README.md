@@ -10,7 +10,7 @@ Carnegie Mellon University
 </div>
 
 <div align="center">
-[<a href="TODO">Paper</a>] | [<a href="https://infini-ai-lab.github.io/WWW.Serve">Blog</a>]
+[<a href="https://arxiv.org/abs/2603.20661">Paper</a>] | [<a href="https://infini-ai-lab.github.io/WWW.Serve">Blog</a>]
 </div>
 
 
@@ -158,5 +158,13 @@ The simulation results can be analyzed using the Jupyter notebooks in `experimen
 
 ### Citation
 ```
-TODO
+@misc{wang2026wwwserveinterconnectinggloballlm,
+    title={WWW.Serve: Interconnecting Global LLM Services through Decentralization}, 
+    author={Huanyu Wang and Ziyu Xia and Zhuoming Chen and Beidi Chen},
+    year={2026},
+    eprint={2603.20661},
+    archivePrefix={arXiv},
+    primaryClass={cs.DC},
+    url={https://arxiv.org/abs/2603.20661},
+}
 ```
